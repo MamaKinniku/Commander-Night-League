@@ -94,6 +94,9 @@
   .workspace-tab{ font-family:'Old Fenris','Cinzel',serif; font-size:15px; letter-spacing:.03em; opacity:.5; padding: 8px 16px; }
   .workspace-tab.active{ opacity:1; border-color: var(--gold); color: var(--gold); background: var(--panel); }
 
+  .mode-note{ font-size:13.5px; color: var(--muted); line-height:1.5; margin-top:8px; padding:9px 11px; background: var(--bg-soft); border:1px solid var(--panel-line); border-radius:7px; }
+  .mode-note.warn{ border-color: var(--danger); color:#e0a695; }
+
   button.subtle{ opacity:.6; font-weight:500; }
   button.subtle:hover{ opacity:1; }
 
@@ -130,7 +133,7 @@
   .chip .x{ color: var(--muted); font-size: 15px; line-height:1; padding: 0 1px; }
   .chip .x:hover{ color: var(--danger); }
 
-  .pods-grid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(250px,1fr)); gap: 16px; }
+  .pods-grid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(270px,1fr)); gap: 16px; }
   .pod{ background: var(--panel); border: 1px solid var(--panel-line); border-left: 4px solid var(--gold); border-radius: var(--radius); padding: 14px 14px 12px; position:relative; min-height: 130px; transition: box-shadow .15s, border-color .15s; }
   .pod.dragover{ box-shadow: 0 0 0 2px var(--gold) inset; }
   .pod-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; cursor: grab; }
@@ -140,10 +143,11 @@
   .pod-count{ font-family:'JetBrains Mono', monospace; font-size: 14px; color: var(--good); }
   .pod-count.bad{ color: var(--danger); }
   .pod-players{ display:flex; flex-direction:column; gap:6px; min-height: 40px; }
-  .pod-player{ display:flex; align-items:center; justify-content:space-between; gap:6px; background: var(--bg-soft); border:1px solid var(--panel-line); border-radius:6px; padding:7px 8px 7px 10px; font-size:17px; cursor:grab; }
+  .pod-player{ display:flex; flex-direction:column; align-items:stretch; gap:6px; background: var(--bg-soft); border:1px solid var(--panel-line); border-radius:6px; padding:8px 10px; font-size:17px; cursor:grab; }
   .pod-player.selected{ border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold); }
-  .pod-player .name{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .pod-player select{ width: auto; padding: 5px 7px; font-size: 14.5px; }
+  .pod-player-top{ display:flex; align-items:center; gap:6px; }
+  .pod-player .name{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; }
+  .pod-player select{ width: 100%; padding: 5px 7px; font-size: 14.5px; }
   .pod-player .x{ color: var(--muted); font-size:15px; cursor:pointer; }
   .pod-player .x:hover{ color: var(--danger); }
   .pod-empty-hint{ color: var(--muted); font-size:14.5px; font-style:italic; padding: 8px 2px; }
@@ -193,15 +197,14 @@
   .modal-head h2{ margin:0; }
 
   footer{ margin-top: 34px; text-align:center; color: var(--muted); font-family:'JetBrains Mono', monospace; }
-  .footer-tagline{ font-size: 14.5px; letter-spacing:.16em; }
-  .footer-credit{ margin-top:7px; font-family:'Old Fenris','Cinzel',serif; font-size: 17px; letter-spacing:.06em; color: var(--gold); }
+  .footer-credit{ font-family:'Old Fenris','Cinzel',serif; font-size: 17px; letter-spacing:.06em; color: var(--gold); }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
     <div class="header-brand">
-      <p class="brand-eyebrow">Magic: The Gathering · Commander</p>
+      <p class="brand-eyebrow">Magic: The Gathering Commander</p>
       <h1 id="appNameHeading">Commander Night</h1>
       <div class="stat-strip">
         <div><b id="statPlayers">0</b>players</div>
@@ -232,7 +235,7 @@
   <div class="workspace-bar">
     <button class="workspace-tab active" id="wsLeagueBtn">🏆 League</button>
     <button class="workspace-tab" id="wsFreeplayBtn">🎲 Freeplay</button>
-    <span class="hint" style="margin:0 0 0 4px;">Each is a fully separate board — its own players, tables, rounds, and timer — so you can run both at once and just flip between them. Only League nights bank to season stats.</span>
+    <span class="hint" style="margin:0 0 0 4px;">Two separate boards, each with its own players, tables and timer. Run both at once and flip between them. Only League counts toward the season.</span>
   </div>
 
   <div class="layout">
@@ -255,24 +258,37 @@
         <button class="block primary" id="finishRoundBtn">Finish round &amp; score</button>
         <button class="block" id="undoRoundBtn">Revert last round</button>
         <p class="hint">
-          <b>Revert last round</b> undoes the most recently finished round's scoring <i>and</i> puts its tables back on the board so you can fix a mistake and re-finish it.<br><br>
-          There's no round cap — keep going until you're ready to wrap up the night.
+          <b>Revert last round</b> takes back the last round's scores and puts those tables back up, so you can fix a mistake and score it again.<br><br>
+          Run as many rounds as you want. Nothing caps it.
         </p>
       </div>
 
       <div class="panel">
         <h2>Pod Assignment</h2>
+
+        <label class="field-label">Seating method</label>
+        <select id="seatingModeSelect">
+          <option value="random">Random</option>
+          <option value="score">By score (top players together)</option>
+          <option value="balanced">Balanced (mix strong and weak)</option>
+        </select>
+        <div class="mode-note" id="seatingModeNote"></div>
+
         <label class="field-label">Starting table number</label>
-        <input type="number" id="startingTableInput" value="1" min="1">
+        <div class="row">
+          <input type="number" id="startingTableInput" value="1" min="1" style="flex:1;">
+          <button id="renumberBtn" title="Renumber tables without reshuffling players">Update</button>
+        </div>
+
         <div class="btn-pair" style="margin-top:14px;">
-          <button class="primary" id="randomizeBtn">Randomize</button>
+          <button class="primary" id="randomizeBtn">Seat players</button>
           <button id="repairBtn">Repair</button>
         </div>
         <button class="block" id="addTableBtn">+ Add empty table</button>
         <button class="block danger subtle" id="clearBtn">Clear everyone</button>
         <p class="hint">
-          Tables are always seated 3–4 players. <b>Randomize</b> shuffles everyone into fresh tables, favoring pairings people haven't played yet. <b>Repair</b> fixes uneven table sizes without a full reshuffle.<br><br>
-          Tables number automatically from the starting number above. Drag a table's header to reorder it, drag a name between tables to move them, or use the ✕ on a table to remove it (its players go back to Unassigned).
+          Tables seat 3 or 4. <b>Seat players</b> builds fresh tables using the seating method above. <b>Repair</b> evens out table sizes without reshuffling everyone.<br><br>
+          Drag a table header to reorder. Drag a name to move them. The ✕ on a table clears it and sends those players back to Unassigned.
         </p>
       </div>
 
@@ -280,13 +296,13 @@
         <h2>Display</h2>
         <button class="block" id="tvBtn">📺 Open TV display (new window)</button>
         <button class="block subtle" id="castHelpBtn">How do I get this on a TV?</button>
-        <p class="hint">Each TV display window has its own League/Freeplay tabs, independent of what you're editing here — open as many as you have screens for.</p>
+        <p class="hint">Each display window has its own League/Freeplay tabs and ignores whatever you're doing here. Open one per screen.</p>
       </div>
     </div>
 
     <div>
       <div class="panel" style="margin-bottom:16px;">
-        <h2>Unassigned <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-transform:none;">(<span id="poolCount">0</span> — bye if round finishes)</span></h2>
+        <h2>Unassigned <span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-transform:none;">(<span id="poolCount">0</span> waiting)</span></h2>
         <input type="text" id="playerFilter" placeholder="Search players…" style="margin-bottom:8px;">
         <div class="pool" id="poolZone"></div>
       </div>
@@ -311,7 +327,7 @@
           <input type="text" id="adjNoteInput" placeholder="Reason (optional)" style="flex:2;">
         </div>
         <button class="block primary" id="applyAdjBtn">Apply adjustment</button>
-        <p class="hint">Adjustments only take effect when you click Apply, so standings won't shift while you're mid-edit. Every applied adjustment is logged below.</p>
+        <p class="hint">Nothing changes until you hit Apply, so the standings stay put while you type. Every adjustment gets logged below.</p>
         <label class="field-label">Adjustment log</label>
         <div id="adjLogArea"></div>
       </div>
@@ -334,7 +350,7 @@
           <button class="block primary" id="downloadLogBtn">Download log (.txt)</button>
         </div>
         <button class="block" id="newNightBtn">Start new night</button>
-        <p class="hint" id="bankHintText">Bank the night to add it to season standings, then start a new night to clear the board. Starting a new night will warn you if this one hasn't been banked yet.</p>
+        <p class="hint" id="bankHintText">Bank the night to add it to the season, then start a new night to clear the board. If you try to start a new night without banking, it'll stop and ask first.</p>
       </div>
 
       <div class="panel" style="margin-top:16px;">
@@ -349,13 +365,12 @@
         </div>
         <input type="file" id="importSeasonFile" accept="application/json,.json" style="display:none;">
         <button class="block danger subtle" id="resetSeasonBtn" style="margin-top:12px;">Reset season</button>
-        <p class="hint">A season <b>.json</b> file is saved to your Downloads folder automatically every time you bank a night (toggle in Settings). That file is the only copy that's truly yours — browser storage can be wiped by clearing cache, moving the folder, or switching PCs. Players are matched across nights by name, ignoring capitalisation and extra spaces.</p>
+        <p class="hint">Every time you bank a night, a <b>.json</b> lands in your Downloads folder (switch it off in Settings). Keep those. Browser storage gets wiped by cache clears, moved folders and new PCs; the file doesn't. Names are matched across nights ignoring caps and extra spaces.</p>
       </div>
     </div>
   </div>
 
   <footer>
-    <div class="footer-tagline">SEAT · SHUFFLE · PLAY COMMANDER</div>
     <div class="footer-credit">Designed by MamaKinniku</div>
   </footer>
 </div>
@@ -384,7 +399,7 @@
     <label class="field-label">Season backup</label>
     <label class="row" style="align-items:flex-start; margin-top:0; cursor:pointer;">
       <input type="checkbox" id="autoBankFileCheck" checked style="width:auto; margin-top:3px;">
-      <span style="font-size:12.5px; line-height:1.45;">Automatically save a season <b>.json</b> file every time I bank a night</span>
+      <span style="font-size:12.5px; line-height:1.45;">Save a season <b>.json</b> to Downloads every time I bank a night</span>
     </label>
     <button class="block primary" id="saveSettingsBtn" style="margin-top:16px;">Save settings</button>
     <p class="hint" id="settingsSavedNote"></p>
@@ -531,12 +546,14 @@ function solve34(n){
   return [n]; // shouldn't happen for n not in {1,2,5}
 }
 
-function askChoice(message){
+function askChoice(message, labelA, labelB){
   return new Promise(resolve=>{
     const overlay = document.getElementById('choiceOverlay');
     document.getElementById('choiceMessage').textContent = message;
     const btnA = document.getElementById('choiceBtnA');
     const btnB = document.getElementById('choiceBtnB');
+    btnA.textContent = labelA || 'Pair them';
+    btnB.textContent = labelB || 'Give byes';
     overlay.style.display = 'flex';
     function cleanup(result){
       overlay.style.display = 'none';
@@ -551,18 +568,23 @@ function askChoice(message){
   });
 }
 
-// Returns an array of table sizes (each 3 or 4, occasionally one 2 if the
-// organizer chooses to pair an odd couple out) for n players.
+// Returns table sizes for n players. Every table is 3 or 4 except where the
+// organiser chooses to seat a pair. Any players not covered by these sizes take
+// a bye.
 async function computeTableSizes(n){
   if(n <= 0) return [];
-  if(n === 1) return []; // lone player just waits in Unassigned, nothing to seat
+  if(n === 1) return []; // lone player waits it out
   if(n === 2){
-    const choice = await askChoice('Only 2 players are available right now — pair them at one table, or give both a bye this round?');
+    const choice = await askChoice(
+      'Only 2 players available. Seat them together as a two-player table, or give them both a bye this round?',
+      'Seat the pair', 'Both take a bye');
     return choice === 'pair' ? [2] : [];
   }
   if(n === 5){
-    const choice = await askChoice("5 players doesn't split evenly into tables of 3–4. Pair the last 2 together (a table of 3 + a table of 2), or give those 2 a bye?");
-    return choice === 'pair' ? [3,2] : [3];
+    const choice = await askChoice(
+      "5 players won't split evenly into tables of 3-4. Seat a full table of 4 and give one player a bye, or run two tables (3 and 2)?",
+      'Two tables (3 + 2)', 'Table of 4, one bye');
+    return choice === 'pair' ? [3,2] : [4];
   }
   return solve34(n);
 }
@@ -590,24 +612,83 @@ function activePlayerIds(){
   return state.players.filter(p=>!p.dropped).map(p=>p.id);
 }
 
+// Ordering strategies for seating. Each returns a player-id list; it's then
+// sliced into tables of 3-4 in order, so position in this list decides who
+// sits with whom.
+function orderPlayersForMode(ids, mode){
+  const standings = computeStandings();
+  const pts = {};
+  standings.forEach(s=>{ pts[s.id] = s.points; });
+  const scoreOf = id => pts[id] || 0;
+
+  if(mode === 'score'){
+    // Highest scorers together, so leaders meet leaders. Ties broken randomly
+    // so the same people don't get locked into the same seats every round.
+    return shuffle(ids).sort((a,b)=> scoreOf(b) - scoreOf(a));
+  }
+
+  if(mode === 'balanced'){
+    // Snake-deal the ranked list across tables so every table gets a mix of
+    // strong and weak players.
+    const ranked = shuffle(ids).sort((a,b)=> scoreOf(b) - scoreOf(a));
+    const tableCount = Math.max(1, Math.round(ranked.length / 4));
+    const buckets = Array.from({length: tableCount}, ()=>[]);
+    let t = 0, dir = 1;
+    ranked.forEach(id=>{
+      buckets[t].push(id);
+      t += dir;
+      if(t === tableCount){ t = tableCount - 1; dir = -1; }
+      else if(t < 0){ t = 0; dir = 1; }
+    });
+    return buckets.flat();
+  }
+
+  return shuffle(ids); // 'random'
+}
+
+function currentSeatingMode(){
+  const el = document.getElementById('seatingModeSelect');
+  return el ? el.value : 'random';
+}
+
 async function randomizeAll(){
   const allIds = activePlayerIds();
   if(allIds.length === 0) return;
+  const mode = currentSeatingMode();
   const sizes = await computeTableSizes(allIds.length);
   const totalSeats = sizes.reduce((a,b)=>a+b, 0);
-  let best = null, bestScore = Infinity;
-  const attempts = allIds.length > 40 ? 60 : 250;
-  for(let a=0;a<attempts;a++){
-    const shuffled = shuffle(allIds);
-    const seatedIds = shuffled.slice(0, totalSeats);
-    const leftoverIds = shuffled.slice(totalSeats);
-    const podArrays = splitIntoSizes(seatedIds, sizes);
-    const s = scorePodArrays(podArrays);
-    if(s < bestScore){ bestScore = s; best = { podArrays, leftoverIds }; }
-    if(bestScore === 0) break;
+
+  if(mode === 'random'){
+    // Try many shuffles and keep the one with the fewest repeat pairings.
+    let best = null, bestScore = Infinity;
+    const attempts = allIds.length > 40 ? 60 : 250;
+    for(let a=0;a<attempts;a++){
+      const shuffled = shuffle(allIds);
+      const seatedIds = shuffled.slice(0, totalSeats);
+      const leftoverIds = shuffled.slice(totalSeats);
+      const podArrays = splitIntoSizes(seatedIds, sizes);
+      const s = scorePodArrays(podArrays);
+      if(s < bestScore){ bestScore = s; best = { podArrays, leftoverIds }; }
+      if(bestScore === 0) break;
+    }
+    state.pods = best.podArrays.map(arr=>({members: arr, ranks: {}, label: ''}));
+    state.unassigned = best.leftoverIds;
+  } else {
+    // Score and balanced modes need their ordering preserved, so we only
+    // re-roll within the ordering to break ties, not across the whole field.
+    let best = null, bestScore = Infinity;
+    for(let a=0;a<40;a++){
+      const ordered = orderPlayersForMode(allIds, mode);
+      const seatedIds = ordered.slice(0, totalSeats);
+      const leftoverIds = ordered.slice(totalSeats);
+      const podArrays = splitIntoSizes(seatedIds, sizes);
+      const s = scorePodArrays(podArrays);
+      if(s < bestScore){ bestScore = s; best = { podArrays, leftoverIds }; }
+      if(bestScore === 0) break;
+    }
+    state.pods = best.podArrays.map(arr=>({members: arr, ranks: {}, label: ''}));
+    state.unassigned = best.leftoverIds;
   }
-  state.pods = best.podArrays.map(arr=>({members: arr, ranks: {}, label: ''}));
-  state.unassigned = best.leftoverIds;
   state.selectedPlayerId = null;
   render();
 }
@@ -624,6 +705,14 @@ async function repairPods(){
   state.pods = splitIntoSizes(seatedIds, sizes).map(arr=>({members: arr, ranks: {}, label: ''}));
   state.unassigned = leftoverIds;
   state.selectedPlayerId = null;
+  render();
+}
+
+function renumberTables(){
+  const val = parseInt(document.getElementById('startingTableInput').value);
+  startingTableNumber = Math.max(1, isNaN(val) ? 1 : val);
+  document.getElementById('startingTableInput').value = startingTableNumber;
+  state.pods.forEach(p=>{ p.label = ''; }); // clear overrides so numbering applies
   render();
 }
 
@@ -818,6 +907,60 @@ function movePlayerTo(id, destPodIndex){
   } else {
     state.pods[destPodIndex].members.push(id);
   }
+}
+
+// Assign a rank, swapping with whoever currently holds it. Rank 0 ("no
+// placement") is shareable, so it never triggers a swap.
+function assignRankWithSwap(pod, id, newRank){
+  const oldRank = pod.ranks[id];
+  if(newRank === 0){ pod.ranks[id] = 0; return; }
+  const holder = pod.members.find(mid => mid !== id && pod.ranks[mid] === newRank);
+  pod.ranks[id] = newRank;
+  if(holder !== undefined){
+    if(oldRank === undefined || oldRank === null) delete pod.ranks[holder];
+    else pod.ranks[holder] = oldRank;
+  }
+}
+
+// Builds the placement dropdown. While a table is still being filled in we hide
+// placements that are already taken, so entry stays clean. Once everything is
+// placed (which is always the case in round history) we show them all again and
+// swap on selection — otherwise there'd be no way to correct a mistake.
+function buildPlacementSelect(pod, id, onPicked){
+  const select = document.createElement('select');
+  const currentRank = pod.ranks[id];
+  const allPlaced = pod.members.every(m => pod.ranks[m] !== undefined && pod.ranks[m] !== null);
+
+  if(currentRank === undefined || currentRank === null){
+    const placeholder = document.createElement('option');
+    placeholder.value = ''; placeholder.disabled = true; placeholder.selected = true; placeholder.hidden = true;
+    placeholder.textContent = 'Pick placement';
+    select.appendChild(placeholder);
+  }
+
+  const zeroOpt = document.createElement('option');
+  zeroOpt.value = '0';
+  zeroOpt.textContent = 'No placement · 0pt';
+  if(currentRank === 0) zeroOpt.selected = true;
+  select.appendChild(zeroOpt);
+
+  for(let r=1; r<=pod.members.length; r++){
+    const holder = pod.members.find(mid => mid !== id && pod.ranks[mid] === r);
+    if(holder !== undefined && !allPlaced) continue; // hide taken slots during entry
+    const opt = document.createElement('option');
+    opt.value = r;
+    opt.textContent = ordinal(r) + ` · ${pointsForRank(r)}pt` +
+      (holder !== undefined ? ` (swap with ${playerName(holder)})` : '');
+    if(currentRank === r) opt.selected = true;
+    select.appendChild(opt);
+  }
+
+  select.addEventListener('click', (e)=> e.stopPropagation());
+  select.addEventListener('change', (e)=>{
+    assignRankWithSwap(pod, id, parseInt(e.target.value));
+    onPicked();
+  });
+  return select;
 }
 
 function setRank(podIndex, playerId, rank){
@@ -1655,7 +1798,7 @@ function render(){
   } else if(visibleUnassigned.length === 0){
     const e = document.createElement('div');
     e.className = 'pool-empty';
-    e.textContent = 'No unassigned player matches that search.';
+    e.textContent = 'Nobody waiting matches that search.';
     poolZone.appendChild(e);
   } else {
     visibleUnassigned.forEach(id=> poolZone.appendChild(makeChip(id)));
@@ -1673,8 +1816,8 @@ function render(){
     const empty = document.createElement('div');
     empty.className = 'empty-state';
     empty.innerHTML = activeCount
-      ? '<b>No tables yet.</b><br>Hit Randomize, or add an empty table to seat manually.'
-      : '<b>The room is empty.</b><br>Paste your sign-in list to begin.';
+      ? '<b>No tables yet.</b><br>Hit Seat players, or add an empty table and drag people in.'
+      : '<b>Nobody signed in yet.</b><br>Paste your list to get started.';
     podsArea.appendChild(empty);
   } else {
     const grid = document.createElement('div');
@@ -1712,7 +1855,7 @@ function render(){
   const standingsArea = document.getElementById('standingsArea');
   const standings = computeStandings();
   if(standings.length === 0){
-    standingsArea.innerHTML = '<p class="hint" style="margin-top:0;">Scores will appear here once you finish a round.</p>';
+    standingsArea.innerHTML = '<p class="hint" style="margin-top:0;">Scores show up here after the first round.</p>';
   } else {
     const table = document.createElement('table');
     table.className = 'standings';
@@ -1741,14 +1884,33 @@ function render(){
   renderAdjustmentLog();
   renderHistory();
   renderBankStatus();
+  renderSeatingNote();
 
   const note = document.getElementById('selectedNote');
-  note.textContent = state.selectedPlayerId ? `Selected: ${playerName(state.selectedPlayerId)} — click a table to seat them, or the pool to unseat.` : '';
+  note.textContent = state.selectedPlayerId ? `${playerName(state.selectedPlayerId)} selected. Click a table to seat them, or the pool to pull them out.` : '';
 
   document.getElementById('undoRoundBtn').disabled = state.rounds.length === 0;
 
   renderTVWindow();
   scheduleLiveSave();
+}
+
+const SEATING_NOTES = {
+  random: 'Everyone gets mixed up. The app avoids putting the same people together twice where it can. Best for most rounds — keeps the night social.',
+  score: 'Players on similar points sit together, so the leaders end up at one table. Good for a final round. With a small turnout this repeats pods quickly.',
+  balanced: 'Spreads the leaders across different tables so no single table is stacked. Keeps games close when skill levels vary a lot.',
+};
+
+function renderSeatingNote(){
+  const el = document.getElementById('seatingModeNote');
+  if(!el) return;
+  const mode = currentSeatingMode();
+  el.textContent = SEATING_NOTES[mode] || '';
+  const needsScores = (mode === 'score' || mode === 'balanced') && state.rounds.length === 0;
+  el.className = 'mode-note' + (needsScores ? ' warn' : '');
+  if(needsScores){
+    el.textContent += ' Nobody has points yet, so this round will come out random anyway.';
+  }
 }
 
 function renderBankStatus(){
@@ -1757,24 +1919,24 @@ function renderBankStatus(){
   if(!el || !btn) return;
   if(currentWorkspace !== 'league'){
     el.className = 'bank-status neutral';
-    el.textContent = 'Freeplay nights never bank to season stats.';
+    el.textContent = 'Freeplay doesn\'t count toward the season.';
     btn.disabled = true;
     btn.textContent = '🏆 Bank night to season';
     return;
   }
   if(state.bankedId){
     el.className = 'bank-status ok';
-    el.textContent = '✓ Banked to season stats.';
+    el.textContent = '✓ Banked to the season.';
     btn.disabled = true;
     btn.textContent = '✓ Already banked';
   } else if(state.rounds.length === 0){
     el.className = 'bank-status neutral';
-    el.textContent = 'Finish a round to be able to bank this night.';
+    el.textContent = 'Finish a round first.';
     btn.disabled = true;
     btn.textContent = '🏆 Bank night to season';
   } else {
     el.className = 'bank-status warn';
-    el.textContent = `⚠ ${state.rounds.length} round(s) scored, NOT yet banked to the season.`;
+    el.textContent = `⚠ ${state.rounds.length} round(s) scored, not banked yet.`;
     btn.disabled = false;
     btn.textContent = '🏆 Bank night to season';
   }
@@ -1803,7 +1965,7 @@ function renderAdjustmentLog(){
   const area = document.getElementById('adjLogArea');
   area.innerHTML = '';
   if(state.adjustmentLog.length === 0){
-    area.innerHTML = '<p class="hint" style="margin-top:0;">No manual adjustments yet.</p>';
+    area.innerHTML = '<p class="hint" style="margin-top:0;">No adjustments yet.</p>';
     return;
   }
   [...state.adjustmentLog].reverse().forEach(entry=>{
@@ -1831,7 +1993,7 @@ function renderHistory(){
   const area = document.getElementById('historyArea');
   area.innerHTML = '';
   if(state.rounds.length === 0){
-    area.innerHTML = '<p class="hint" style="margin-top:0;">No rounds finished yet.</p>';
+    area.innerHTML = '<p class="hint" style="margin-top:0;">No rounds played yet.</p>';
     return;
   }
   state.rounds.forEach((round, ri)=>{
@@ -1845,7 +2007,7 @@ function renderHistory(){
     hLabel.textContent = 'Round ' + (ri+1);
     const hCaret = document.createElement('span');
     hCaret.className = 'history-caret';
-    hCaret.textContent = expanded ? '▲ tap to collapse' : '▼ tap to edit placements';
+    hCaret.textContent = expanded ? '▲ close' : '▼ edit placements';
     h.appendChild(hLabel); h.appendChild(hCaret);
     h.addEventListener('click', ()=>{
       if(expandedHistoryRounds.has(ri)) expandedHistoryRounds.delete(ri); else expandedHistoryRounds.add(ri);
@@ -1864,34 +2026,7 @@ function renderHistory(){
           const row = document.createElement('div');
           row.className = 'history-row';
           const nm = document.createElement('span'); nm.textContent = playerName(id);
-          const select = document.createElement('select');
-          const currentRank = pod.ranks[id];
-          if(currentRank === undefined || currentRank === null){
-            const placeholder = document.createElement('option');
-            placeholder.value = ''; placeholder.disabled = true; placeholder.selected = true; placeholder.hidden = true;
-            placeholder.textContent = 'Choose placement…';
-            select.appendChild(placeholder);
-          }
-          const zeroOpt = document.createElement('option');
-          zeroOpt.value = '0'; zeroOpt.textContent = 'No placement (0pt)';
-          if(currentRank === 0) zeroOpt.selected = true;
-          select.appendChild(zeroOpt);
-          for(let r=1; r<=pod.members.length; r++){
-            const heldByOther = pod.members.some(mid=> mid!==id && pod.ranks[mid]===r);
-            if(heldByOther) continue;
-            const opt = document.createElement('option');
-            opt.value = r; opt.textContent = ordinal(r) + ` (${pointsForRank(r)}pt)`;
-            if(currentRank === r) opt.selected = true;
-            select.appendChild(opt);
-          }
-          select.addEventListener('change', (e)=>{
-            const val = parseInt(e.target.value);
-            if(val > 0){
-              Object.keys(pod.ranks).forEach(pid=>{ if(pod.ranks[pid]===val) delete pod.ranks[pid]; });
-            }
-            pod.ranks[id] = val;
-            render();
-          });
+          const select = buildPlacementSelect(pod, id, render);
           row.appendChild(nm); row.appendChild(select);
           block.appendChild(row);
         });
@@ -1937,7 +2072,7 @@ function makeByeCard(){
     const tag = document.createElement('span');
     tag.className = 'bye-tag';
     tag.textContent = '+1 pt';
-    tag.title = 'Byes still earn the attendance point';
+    tag.title = 'Byes still get the attendance point';
     row.appendChild(tag);
     row.addEventListener('dragstart', (e)=> e.dataTransfer.setData('text/plain', id));
     list.appendChild(row);
@@ -1946,7 +2081,7 @@ function makeByeCard(){
 
   const note = document.createElement('div');
   note.className = 'pod-empty-hint';
-  note.textContent = 'Sitting out this round — each still scores the attendance point.';
+  note.textContent = 'Sitting out. Still gets the attendance point.';
   card.appendChild(note);
 
   card.addEventListener('dragover', (e)=>{ e.preventDefault(); card.classList.add('dragover'); });
@@ -2031,45 +2166,30 @@ function makePodCard(pod, index){
       row.draggable = true;
       row.dataset.id = id;
 
+      const top = document.createElement('div');
+      top.className = 'pod-player-top';
+
       const nameSpan = document.createElement('span');
       nameSpan.className = 'name';
       nameSpan.textContent = playerName(id);
-      row.appendChild(nameSpan);
+      nameSpan.title = playerName(id);
+      top.appendChild(nameSpan);
 
-      const select = document.createElement('select');
-      const currentRank = pod.ranks[id];
-      if(currentRank === undefined || currentRank === null){
-        const placeholder = document.createElement('option');
-        placeholder.value = ''; placeholder.disabled = true; placeholder.selected = true; placeholder.hidden = true;
-        placeholder.textContent = 'Choose placement…';
-        select.appendChild(placeholder);
-      }
-      const zeroOpt = document.createElement('option');
-      zeroOpt.value = '0';
-      zeroOpt.textContent = 'No placement (0pt)';
-      if(currentRank === 0) zeroOpt.selected = true;
-      select.appendChild(zeroOpt);
-      for(let r=1; r<=pod.members.length; r++){
-        const heldByOther = pod.members.some(mid=> mid!==id && pod.ranks[mid]===r);
-        if(heldByOther) continue;
-        const opt = document.createElement('option');
-        opt.value = r;
-        opt.textContent = ordinal(r) + ` (${pointsForRank(r)}pt)`;
-        if(currentRank === r) opt.selected = true;
-        select.appendChild(opt);
-      }
-      select.addEventListener('click', (e)=> e.stopPropagation());
-      select.addEventListener('change', (e)=>{
-        setRank(index, id, parseInt(e.target.value));
-      });
-      row.appendChild(select);
+      const ren = document.createElement('span');
+      ren.className = 'ren'; ren.textContent = '✎'; ren.title = 'Rename player';
+      ren.addEventListener('click', (e)=>{ e.stopPropagation(); renamePlayer(id); });
+      top.appendChild(ren);
 
       const x = document.createElement('span');
       x.className = 'x'; x.textContent = '✕'; x.title = 'Drop player';
       x.addEventListener('click', (e)=>{ e.stopPropagation(); dropPlayer(id); });
-      row.appendChild(x);
+      top.appendChild(x);
+      row.appendChild(top);
 
-      row.addEventListener('click', (e)=>{ if(e.target!==x && e.target.tagName!=='SELECT') onPlayerClick(id); });
+      const select = buildPlacementSelect(pod, id, render);
+      row.appendChild(select);
+
+      row.addEventListener('click', (e)=>{ if(e.target!==x && e.target!==ren && e.target.tagName!=='SELECT') onPlayerClick(id); });
       row.addEventListener('dragstart', (e)=>{ e.stopPropagation(); e.dataTransfer.setData('text/plain', id); });
       list.appendChild(row);
     });
@@ -2141,6 +2261,8 @@ document.getElementById('singleInput').addEventListener('keydown', (e)=>{
 document.getElementById('randomizeBtn').addEventListener('click', randomizeAll);
 document.getElementById('repairBtn').addEventListener('click', repairPods);
 document.getElementById('addTableBtn').addEventListener('click', addEmptyPod);
+document.getElementById('renumberBtn').addEventListener('click', renumberTables);
+document.getElementById('seatingModeSelect').addEventListener('change', renderSeatingNote);
 document.getElementById('finishRoundBtn').addEventListener('click', finishRound);
 document.getElementById('undoRoundBtn').addEventListener('click', ()=>{
   if(confirm('Revert the most recently finished round? Its scoring will be undone and its tables restored to the board — any changes made to the current board since then will be lost.')) undoLastRound();
@@ -2189,11 +2311,7 @@ document.getElementById('roundLengthInput').addEventListener('change', (e)=>{
   if(!state.timer.running) state.timer.remaining = mins*60;
   updateTimerDisplay();
 });
-document.getElementById('startingTableInput').addEventListener('change', (e)=>{
-  startingTableNumber = Math.max(1, parseInt(e.target.value) || 1);
-  document.getElementById('startingTableInput').value = startingTableNumber;
-  render();
-});
+document.getElementById('startingTableInput').addEventListener('change', renumberTables);
 
 document.getElementById('finalizeBtn').addEventListener('click', finalizeNight);
 document.getElementById('bankNightBtn').addEventListener('click', ()=>{
