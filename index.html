@@ -103,8 +103,11 @@
   .workspace-tab.active{ opacity:1; border-color: var(--gold); color: var(--gold); background: var(--panel); }
 
 
-  .roster-modal{ width: 420px; }
-  .roster-list{ margin-top:10px; max-height: 46vh; overflow-y:auto; border:1px solid var(--panel-line); border-radius:7px; padding:6px; background: var(--bg-soft); }
+  .roster-modal{ width: 440px; }
+  .roster-list{ margin-top:10px; max-height: 42vh; overflow-y:auto; border:1px solid var(--panel-line); border-radius:7px; padding:6px; background: var(--bg-soft); }
+  #rosterSortRow{ margin-top:8px; }
+  #rosterSortRow button{ font-size:13px; padding:6px 10px; opacity:.55; }
+  #rosterSortRow button.on{ opacity:1; border-color: var(--gold); color: var(--gold); }
   .roster-row{ display:flex; align-items:center; gap:9px; padding:7px 8px; border-radius:5px; cursor:pointer; font-size:15px; }
   .roster-row:hover{ background: var(--panel); }
   .roster-row input[type=checkbox]{ width:auto; flex-shrink:0; }
@@ -272,6 +275,7 @@
           <button id="singleAddBtn">Add</button>
         </div>
         <div class="selected-note" id="selectedNote"></div>
+        <button class="block danger subtle" id="resetNightBtn">Clear tonight and start over</button>
       </div>
 
       <div class="panel">
@@ -306,7 +310,6 @@
           <button id="repairBtn">Repair</button>
         </div>
         <button class="block" id="addTableBtn">+ Add empty table</button>
-        <button class="block danger subtle" id="clearBtn">Clear everyone</button>
         <p class="hint">
           Tables seat 3 or 4. <b>Seat players</b> builds fresh tables using the seating method above. <b>Repair</b> evens out table sizes without reshuffling everyone.<br><br>
           Drag a table header to reorder. Drag a name to move them. The ✕ on a table clears it and sends those players back to Unassigned.
@@ -433,13 +436,18 @@
       <h2>Roster</h2>
       <button class="tiny" id="closeRosterBtn">✕</button>
     </div>
-    <p class="hint" style="margin-top:0;">Everyone you have signed in before. Tick who is here tonight and add them in one go.</p>
-    <input type="text" id="rosterSearch" placeholder="Search the roster…">
+    <p class="hint" style="margin-top:0;">Everyone you have signed in before, most recent first. Tick who is here tonight and add them in one go.</p>
+    <input type="text" id="rosterSearch" placeholder="Search the roster...">
+    <div class="btn-row" id="rosterSortRow">
+      <button data-sort="recent" class="on">Recent first</button>
+      <button data-sort="az">A to Z</button>
+    </div>
     <div class="roster-list" id="rosterList"></div>
     <div class="btn-pair" style="margin-top:12px;">
       <button class="primary" id="rosterAddBtn">Add selected</button>
       <button id="rosterSelectAllBtn">Select all</button>
     </div>
+    <button class="block danger subtle" id="rosterRemoveBtn" disabled>Delete selected from roster</button>
     <p class="hint" id="rosterCountNote"></p>
   </div>
 </div>
@@ -502,16 +510,22 @@ let idCounter = 1;
 let adjIdCounter = 1;
 let startingTableNumber = 1;
 let autoBankFile = true;
-let roster = []; // remembered player names, shared by both workspaces
+let roster = []; // [{name, lastSeen}] — most recent first in the picker
+
+function normaliseRoster(){
+  // Older versions stored plain strings. Upgrade them in place.
+  roster = (roster || []).map(r => typeof r === 'string' ? {name: r, lastSeen: 0} : r)
+                         .filter(r => r && r.name);
+}
 
 function rememberInRoster(name){
   const k = nameKey(name);
   if(!k) return;
-  if(!roster.some(r=> nameKey(r) === k)){
-    roster.push(name.trim());
-    roster.sort((a,b)=> a.localeCompare(b));
-    saveRoster();
-  }
+  const now = Date.now();
+  const found = roster.find(r=> nameKey(r.name) === k);
+  if(found){ found.lastSeen = now; }
+  else { roster.push({name: name.trim(), lastSeen: now}); }
+  saveRoster();
 }
 
 async function saveRoster(){
@@ -523,6 +537,7 @@ async function loadRoster(){
     const raw = await storageGet('roster');
     if(raw) roster = JSON.parse(raw) || [];
   }catch(e){ roster = []; }
+  normaliseRoster();
   renderRosterDatalist();
 }
 
@@ -1747,9 +1762,14 @@ function importSeasonBackup(file){
     }
     await saveSeasonArchive();
     if(Array.isArray(parsed.roster) && parsed.roster.length){
-      const seenNames = new Set(roster.map(nameKey));
-      parsed.roster.forEach(n=>{ if(n && !seenNames.has(nameKey(n))){ roster.push(n); seenNames.add(nameKey(n)); } });
-      roster.sort((a,b)=> a.localeCompare(b));
+      const incoming = parsed.roster
+        .map(r => typeof r === 'string' ? {name: r, lastSeen: 0} : r)
+        .filter(r => r && r.name);
+      const seen = new Set(roster.map(r=> nameKey(r.name)));
+      incoming.forEach(r=>{
+        const k = nameKey(r.name);
+        if(k && !seen.has(k)){ roster.push({name: r.name, lastSeen: r.lastSeen || 0}); seen.add(k); }
+      });
       await saveRoster();
       renderRosterDatalist();
     }
@@ -2074,17 +2094,28 @@ function renderRosterDatalist(){
   const dl = document.getElementById('rosterOptions');
   if(!dl) return;
   dl.innerHTML = '';
-  roster.forEach(name=>{
+  sortedRoster().forEach(r=>{
     const o = document.createElement('option');
-    o.value = name;
+    o.value = r.name;
     dl.appendChild(o);
   });
 }
 
 let rosterChecked = new Set();
+let rosterSort = 'recent';
+let rosterShowAll = false;
+const ROSTER_PAGE = 25;
+
+function sortedRoster(){
+  const copy = [...roster];
+  if(rosterSort === 'az') copy.sort((a,b)=> a.name.localeCompare(b.name));
+  else copy.sort((a,b)=> (b.lastSeen||0) - (a.lastSeen||0) || a.name.localeCompare(b.name));
+  return copy;
+}
 
 function openRoster(){
   rosterChecked = new Set();
+  rosterShowAll = false;
   document.getElementById('rosterSearch').value = '';
   document.getElementById('rosterOverlay').style.display = 'flex';
   renderRosterList();
@@ -2094,21 +2125,33 @@ function signedInKeys(){
   return new Set(state.players.map(p=> nameKey(p.name)));
 }
 
+function lastSeenLabel(ts){
+  if(!ts) return '';
+  const days = Math.floor((Date.now() - ts) / 86400000);
+  if(days <= 0) return 'today';
+  if(days === 1) return 'yesterday';
+  if(days < 7) return days + 'd ago';
+  if(days < 60) return Math.floor(days/7) + 'w ago';
+  return Math.floor(days/30) + 'mo ago';
+}
+
 function renderRosterList(){
   const listEl = document.getElementById('rosterList');
   const noteEl = document.getElementById('rosterCountNote');
   if(!listEl) return;
   const q = nameKey(document.getElementById('rosterSearch').value);
   const here = signedInKeys();
-  const shown = roster.filter(n=> !q || nameKey(n).includes(q));
+  const all = sortedRoster().filter(r=> !q || nameKey(r.name).includes(q));
+  const shown = (rosterShowAll || q) ? all : all.slice(0, ROSTER_PAGE);
 
   listEl.innerHTML = '';
   if(roster.length === 0){
     listEl.innerHTML = '<p class="hint" style="margin:0;">Nobody saved yet. Names land here on their own as you sign people in.</p>';
-  } else if(shown.length === 0){
+  } else if(all.length === 0){
     listEl.innerHTML = '<p class="hint" style="margin:0;">No match.</p>';
   } else {
-    shown.forEach(name=>{
+    shown.forEach(entry=>{
+      const name = entry.name;
       const k = nameKey(name);
       const alreadyHere = here.has(k);
       const row = document.createElement('label');
@@ -2116,7 +2159,6 @@ function renderRosterList(){
 
       const cb = document.createElement('input');
       cb.type = 'checkbox';
-      cb.disabled = alreadyHere;
       cb.checked = rosterChecked.has(k);
       cb.addEventListener('change', ()=>{
         if(cb.checked) rosterChecked.add(k); else rosterChecked.delete(k);
@@ -2129,59 +2171,68 @@ function renderRosterList(){
       nm.textContent = name;
       row.appendChild(nm);
 
-      if(alreadyHere){
-        const tag = document.createElement('span');
-        tag.className = 'roster-tag';
-        tag.textContent = 'here';
-        row.appendChild(tag);
-      } else {
-        const del = document.createElement('button');
-        del.className = 'tiny danger'; del.textContent = '✕';
-        del.title = 'Remove from roster';
-        del.addEventListener('click', (e)=>{
-          e.preventDefault(); e.stopPropagation();
-          if(!confirm(`Remove "${name}" from the saved roster? This won't touch any past results.`)) return;
-          roster = roster.filter(r=> nameKey(r) !== k);
-          rosterChecked.delete(k);
-          saveRoster();
-          renderRosterDatalist();
-          renderRosterList();
-        });
-        row.appendChild(del);
-      }
+      const meta = document.createElement('span');
+      meta.className = 'roster-tag';
+      meta.textContent = alreadyHere ? 'here' : lastSeenLabel(entry.lastSeen);
+      row.appendChild(meta);
       listEl.appendChild(row);
     });
+
+    if(!rosterShowAll && !q && all.length > ROSTER_PAGE){
+      const more = document.createElement('button');
+      more.className = 'block';
+      more.style.marginTop = '8px';
+      more.textContent = `Show all ${all.length}`;
+      more.addEventListener('click', (e)=>{ e.preventDefault(); rosterShowAll = true; renderRosterList(); });
+      listEl.appendChild(more);
+    }
   }
   updateRosterCount();
-  if(noteEl && roster.length){
-    const hereCount = roster.filter(n=> here.has(nameKey(n))).length;
-    noteEl.textContent = `${roster.length} saved · ${hereCount} already signed in tonight`;
-  } else if(noteEl){
-    noteEl.textContent = '';
+  if(noteEl){
+    const hereCount = roster.filter(r=> here.has(nameKey(r.name))).length;
+    noteEl.textContent = roster.length
+      ? `${roster.length} saved, ${hereCount} already in tonight`
+      : '';
   }
 }
 
 function updateRosterCount(){
-  const btn = document.getElementById('rosterAddBtn');
-  if(btn) btn.textContent = rosterChecked.size ? `Add selected (${rosterChecked.size})` : 'Add selected';
+  const add = document.getElementById('rosterAddBtn');
+  const del = document.getElementById('rosterRemoveBtn');
+  const n = rosterChecked.size;
+  if(add) add.textContent = n ? `Add selected (${n})` : 'Add selected';
+  if(del) del.disabled = n === 0;
 }
 
 function addCheckedFromRoster(){
   if(rosterChecked.size === 0){ alert('Tick a few names first.'); return; }
   const here = signedInKeys();
   let added = 0;
-  roster.forEach(name=>{
-    const k = nameKey(name);
+  sortedRoster().forEach(entry=>{
+    const k = nameKey(entry.name);
     if(!rosterChecked.has(k) || here.has(k)) return;
     const id = newId();
-    state.players.push({id, name, dropped:false});
+    state.players.push({id, name: entry.name, dropped:false});
     state.unassigned.push(id);
+    entry.lastSeen = Date.now();
     added++;
   });
   rosterChecked = new Set();
+  saveRoster();
   document.getElementById('rosterOverlay').style.display = 'none';
   render();
   if(added) alert(`${added} player${added===1?'':'s'} signed in.`);
+}
+
+function removeCheckedFromRoster(){
+  const n = rosterChecked.size;
+  if(n === 0) return;
+  if(!confirm(`Delete ${n} name${n===1?'':'s'} from the saved roster?\n\nThis only clears the saved list. It does not touch tonight's board or any past results.`)) return;
+  roster = roster.filter(r=> !rosterChecked.has(nameKey(r.name)));
+  rosterChecked = new Set();
+  saveRoster();
+  renderRosterDatalist();
+  renderRosterList();
 }
 
 function renderBankStatus(){
@@ -2568,8 +2619,18 @@ document.getElementById('castHelpBtn').addEventListener('click', ()=>{
 document.getElementById('storeStatsBtn').addEventListener('click', openStoreStatsWindow);
 document.getElementById('wsLeagueBtn').addEventListener('click', ()=> switchWorkspace('league'));
 document.getElementById('wsFreeplayBtn').addEventListener('click', ()=> switchWorkspace('freeplay'));
-document.getElementById('clearBtn').addEventListener('click', ()=>{
-  if(confirm('Clear all players, standings, and history for tonight? This does not touch season stats, but tonight will not be banked. This cannot be undone.')) clearEverything();
+document.getElementById('resetNightBtn').addEventListener('click', ()=>{
+  const n = state.players.length;
+  const where = currentWorkspace === 'league' ? 'League' : 'Freeplay';
+  if(!confirm(
+    `Clear the ${where} board?\n\n` +
+    `This removes all ${n} player${n===1?'':'s'}, every table, and any rounds scored tonight. ` +
+    `Banked seasons and the saved roster are not touched.\n\nThis cannot be undone.`
+  )) return;
+  clearEverything();
+  if(roster.length && confirm('Board cleared.\n\nWere those test names? Open the roster now so you can delete them from the saved list?')){
+    openRoster();
+  }
 });
 
 document.getElementById('timerToggleBtn').addEventListener('click', ()=>{
@@ -2593,12 +2654,20 @@ document.getElementById('rosterOverlay').addEventListener('click', (e)=>{
 });
 document.getElementById('rosterSearch').addEventListener('input', renderRosterList);
 document.getElementById('rosterAddBtn').addEventListener('click', addCheckedFromRoster);
+document.getElementById('rosterRemoveBtn').addEventListener('click', removeCheckedFromRoster);
+document.querySelectorAll('#rosterSortRow button').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    rosterSort = b.dataset.sort;
+    document.querySelectorAll('#rosterSortRow button').forEach(x=> x.classList.toggle('on', x===b));
+    renderRosterList();
+  });
+});
 document.getElementById('rosterSelectAllBtn').addEventListener('click', ()=>{
   const q = nameKey(document.getElementById('rosterSearch').value);
   const here = signedInKeys();
-  const shown = roster.filter(n=> (!q || nameKey(n).includes(q)) && !here.has(nameKey(n)));
-  const allOn = shown.every(n=> rosterChecked.has(nameKey(n)));
-  shown.forEach(n=>{ if(allOn) rosterChecked.delete(nameKey(n)); else rosterChecked.add(nameKey(n)); });
+  const shown = sortedRoster().filter(r=> (!q || nameKey(r.name).includes(q)) && !here.has(nameKey(r.name)));
+  const allOn = shown.length > 0 && shown.every(r=> rosterChecked.has(nameKey(r.name)));
+  shown.forEach(r=>{ if(allOn) rosterChecked.delete(nameKey(r.name)); else rosterChecked.add(nameKey(r.name)); });
   renderRosterList();
 });
 
