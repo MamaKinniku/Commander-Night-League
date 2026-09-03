@@ -137,6 +137,13 @@
           <button data-p="30">Winner heavy</button>
         </div>
 
+        <label class="f" id="minLabel">Minimum each</label>
+        <div class="row">
+          <input type="number" id="minEach" value="0" min="0" step="1">
+          <button id="minClearBtn" title="Back to no minimum">None</button>
+        </div>
+        <p class="weights-note" id="minNote">Everyone paid gets at least this much before the spread is applied. Set it to 1 or 2 to stop the bottom places drifting apart.</p>
+
         <label class="f">Share per place</label>
         <div id="weights"></div>
         <button class="block" id="recalcBtn">Reset to slider</button>
@@ -269,9 +276,22 @@ function calc(){
   // each place its floor and stopping there can waste a big chunk of the pool,
   // so the spare units go to whoever was cut hardest by the rounding.
   const totalUnits = Math.floor((pool + 1e-9) / unit);
-  const exact = weights.map(w => (w / totalW) * totalUnits);
+  const places = weights.length;
+
+  // A floor is paid out first. Only what is left after that gets shaped by the
+  // spread, which keeps the bottom places level instead of trailing to nothing.
+  let minEach = Math.max(0, Math.floor(parseFloat(el('minEach').value) || 0));
+  let floorClamped = false;
+  if(minEach * places > totalUnits){
+    minEach = Math.floor(totalUnits / places);
+    floorClamped = true;
+  }
+  const floorUnits = minEach * places;
+  const spreadUnits = totalUnits - floorUnits;
+
+  const exact = weights.map(w => (w / totalW) * spreadUnits);
   const base = exact.map(v => Math.floor(v + 1e-9));
-  let spare = totalUnits - base.reduce((a,b)=>a+b, 0);
+  let spare = spreadUnits - base.reduce((a,b)=>a+b, 0);
   const order = exact
     .map((v,i)=>({i, frac: v - Math.floor(v + 1e-9)}))
     .sort((a,b)=> b.frac - a.frac || a.i - b.i);
@@ -281,7 +301,8 @@ function calc(){
     spare--; oi++;
   }
 
-  const rows = base.map((units,i)=>{
+  const rows = base.map((extra,i)=>{
+    const units = extra + minEach;
     const value = units * unit;
     if(value <= 0) emptyPlaces++;
     return { i, share: weights[i] / totalW, units, value };
@@ -310,7 +331,10 @@ function calc(){
   if(emptyPlaces > 0){
     bits.push(`${emptyPlaces} place${emptyPlaces===1?'':'s'} would get nothing. Pay fewer places, or flatten the spread.`);
   }
-  lo.className = 'leftover ' + (emptyPlaces > 0 ? 'warn' : 'ok');
+  if(floorClamped){
+    bits.push(`The pool only stretches to ${minEach} each, so the minimum was capped there.`);
+  }
+  lo.className = 'leftover ' + (emptyPlaces > 0 || floorClamped ? 'warn' : 'ok');
   lo.textContent = bits.join(' ');
 }
 
@@ -335,6 +359,7 @@ document.querySelectorAll('#modeRow button').forEach(b=>{
     document.querySelectorAll('#modeRow button').forEach(x=> x.classList.toggle('on', x===b));
     el('packCostWrap').style.display = mode === 'packs' ? '' : 'none';
     el('creditWrap').style.display = mode === 'credit' ? '' : 'none';
+    el('minLabel').textContent = mode === 'packs' ? 'Minimum packs each' : 'Minimum steps each';
     calc();
   });
 });
@@ -359,8 +384,9 @@ el('allBtn').addEventListener('click', ()=>{
   rebuildFromCurve();
 });
 
-['players','perHead','poolOverride','packCost','creditRound']
+['players','perHead','poolOverride','packCost','creditRound','minEach']
   .forEach(id=> el(id).addEventListener('input', calc));
+el('minClearBtn').addEventListener('click', ()=>{ el('minEach').value = 0; calc(); });
 el('copyBtn').addEventListener('click', copyText);
 
 rebuildFromCurve();
