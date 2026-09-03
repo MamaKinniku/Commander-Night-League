@@ -1,82 +1,86 @@
-# Commander Night — Local Setup (Windows)
+# Setting it up on Windows
 
-## What you have
-- `index.html` — the app itself. Everything lives in this one file.
-- `Launch Commander Night.bat` — opens the app in a clean window with no
-  browser address bar or tabs, so it looks and behaves like a real desktop app.
-- `Launch Commander Night (Casting Mode).bat` — opens the app in a normal
-  browser window. Use this one when you want to Chromecast to a TV, because
-  casting needs the browser menu that app mode hides.
+## The files
 
-## Setup (2 minutes)
+- `index.html` is the app.
+- `prize-calculator.html` is the prize split calculator. Open it on its own
+  whenever you need it.
+- `Launch Commander Night.bat` opens the app in a clean window with no address
+  bar or tabs.
+- `Launch Commander Night (Casting Mode).bat` opens it in a normal browser
+  window. Use this one for Chromecast.
 
-1. Put both files in the **same folder** — e.g. `C:\Commander Night\`.
-   (The launcher looks for `index.html` right next to itself.)
-2. Double-click **Launch Commander Night.bat** once to make sure it opens
-   correctly. You should get a plain window with no browser UI — just the app.
-3. Right-click `Launch Commander Night.bat` → **Send to → Desktop (create shortcut)**.
-   Now you have a desktop icon. Rename it to whatever you like.
-4. (Optional) Right-click the desktop shortcut → **Properties → Change Icon**,
-   and pick something more fun than the default batch-file icon.
+## Setup
 
-From then on: double-click the desktop icon, and you're in.
+1. Put everything in one folder, something like `C:\Commander Night\`. The
+   launchers look for `index.html` sitting next to them, so keep them together.
+2. Double-click `Launch Commander Night.bat` to check it opens. You should get
+   a plain window with no browser clutter.
+3. Right-click that same file, then Send to, then Desktop (create shortcut).
+   Rename the shortcut to whatever you like.
+4. If you want a nicer icon, right-click the shortcut, then Properties, then
+   Change Icon.
 
-## How data is saved
+After that it is just the desktop icon.
 
-The app saves your theme, season stats, and the live board (so an accidental
-refresh doesn't lose your progress) using your browser's local storage,
-scoped to this file. A few things to know:
+## How your data is saved
 
-- It's tied to **this exact file path**. If you move or rename the folder,
-  or copy the file to a different PC, saved data won't follow — it stays
-  wherever the browser considers "this page" to be.
-- It's **per-browser**. If the launcher opens Edge but you sometimes also
-  open the file in Chrome, those are two separate storage buckets.
-- Back up important nights: use the **Download log (.txt)** button after
-  finalizing, and keep an eye out for an export/import option for season
-  stats if you want an extra safety net — ask and it can be added.
+The app keeps your settings, season and the live board in the browser's own
+storage. It is tied to the file's exact location and to the browser you opened
+it with. Two things follow from that:
 
-## Casting to a TV
+- Move or rename the folder and the browser may treat it as a different site,
+  which loses the saved data.
+- Opening it in Edge one week and Chrome the next gives you two separate sets
+  of data.
 
-**Important:** `Launch Commander Night.bat` opens in "app mode", which hides the
-browser's address bar and three-dot menu. That looks great, but Chromecast is
-started *from* that menu — so casting doesn't work from the app-mode window.
+Hosting it on GitHub Pages avoids both problems. See `README.md`.
 
-You have two good options:
+## Backups
 
-### Option A — Chromecast (use the casting launcher)
+Banking a night automatically saves a JSON file to your Downloads folder. Keep
+those somewhere that is not the shop PC. A USB stick or a cloud folder is fine.
 
-1. Start with **`Launch Commander Night (Casting Mode).bat`** instead. Same app,
-   normal browser window, menu available.
-2. Click **Open TV display** in the app. You cast *that* window — not the
-   control window, or players will see your admin panel.
-3. Browser menu (three dots, top-right) → **Cast...**
-4. Pick your TV, set Sources to **Cast tab**.
-5. Press **F11** on the TV display window for fullscreen.
+Season Stats also has Export backup for one on demand, and Import to load it
+onto another machine. That file holds your whole season and your roster, so it
+is what you need if the computer dies or someone clears the cache.
 
-Both devices must be on the same Wi-Fi. Casting a tab over Wi-Fi can stutter or
-drop out if the network is busy — worth testing before an event.
+There is also Download log after you finalize a night, which is a plain text
+summary of that night's tables, placements and standings.
 
-### Option B — HDMI cable (recommended for live events)
+## Getting it on a TV
 
-Works with either launcher, and doesn't depend on Wi-Fi.
+The clean launcher hides the browser menu, and that menu is where casting
+starts. So casting needs the other launcher.
 
-1. Plug the PC into the TV with HDMI.
-2. Press **Windows key + P**, choose **Extend**.
-3. Drag the TV display window onto the TV screen, press **F11** for fullscreen.
+### Chromecast
 
-### Option C — Smart TV with a built-in browser
+1. Open with `Launch Commander Night (Casting Mode).bat`.
+2. Click Open TV display in the app. Cast that window, not the control window,
+   or the room sees your admin panel.
+3. Browser menu, three dots at the top right, then Cast.
+4. Pick your TV and set Sources to Cast tab.
+5. Press F11 on the display window for fullscreen.
 
-Host the app on GitHub Pages (see `README.md`) and open that URL directly on the
-TV. No casting involved.
+Both devices need to be on the same wifi. Casting over wifi can stutter when
+the network is busy, so test it before you rely on it.
 
-## Putting it on GitHub (optional)
+### HDMI
 
-See `README.md` for hosting this as a real website via GitHub Pages —
-useful if you want a stable URL instead of a local file, or want it
-accessible from other computers.
+More reliable, and it works with either launcher.
 
-## Uninstalling
+1. Plug the PC into the TV.
+2. Press Windows key and P together, then choose Extend.
+3. Drag the TV display window onto the TV and press F11.
 
-There's no installer — just delete the folder and the desktop shortcut.
-Nothing is written anywhere else on your system.
+For a live event where the clock needs to stay up, use the cable.
+
+### Smart TV browser
+
+Host it on GitHub Pages and open the address on the TV directly. No casting
+involved.
+
+## Removing it
+
+There is no installer. Delete the folder and the desktop shortcut. Nothing was
+written anywhere else.

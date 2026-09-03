@@ -47,6 +47,14 @@
   h1 span{ color: var(--gold); }
   .header-right{ display:flex; align-items:stretch; gap:14px; }
   .header-actions{ display:flex; flex-direction:column; gap:8px; justify-content:center; }
+  .tool-link{ display:block; text-align:center; text-decoration:none;
+    font-family:'Inter',sans-serif; font-weight:600; font-size: 16.5px;
+    border-radius: 7px; border: 1px solid var(--panel-line);
+    background: var(--bg-soft); color: var(--parchment);
+    padding: 9px 12px; white-space:nowrap; cursor:pointer;
+    transition: border-color .15s, background .15s, transform .05s; }
+  .tool-link:hover{ border-color: var(--gold); }
+  .tool-link:active{ transform: translateY(1px); }
   .header-actions button{ white-space:nowrap; }
   .stat-strip{ display:flex; gap: 22px; font-family:'JetBrains Mono', monospace; font-size: 15px; color: var(--muted); margin-top:10px; }
   .stat-strip b{ color: var(--parchment); font-size: 23px; display:block; font-family:'Inter',sans-serif; font-weight:700; }
@@ -238,6 +246,7 @@
       <div class="header-actions">
         <button id="storeStatsBtn" title="Store stats">📊 Store Stats</button>
         <button id="openSettingsBtn" title="Settings">⚙ Settings</button>
+        <a class="tool-link" href="prize-calculator.html" target="_blank" rel="noopener" title="Opens the prize calculator in a new tab">🧮 Prize Calculator</a>
       </div>
     </div>
   </header>
