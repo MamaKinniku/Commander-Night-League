@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Commander Night — Magic: The Gathering Commander Pod Maker</title>
+<title>Commander Night · Magic: The Gathering Commander</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='18' fill='%2315130f'/%3E%3Ccircle cx='50' cy='50' r='32' fill='none' stroke='%23cf9b3f' stroke-width='6'/%3E%3Ctext x='50' y='63' font-size='40' text-anchor='middle' fill='%23cf9b3f' font-family='Georgia,serif'%3EC%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
@@ -93,6 +93,16 @@
   .workspace-bar{ display:flex; align-items:center; gap:10px; margin-bottom: 18px; flex-wrap:wrap; }
   .workspace-tab{ font-family:'Old Fenris','Cinzel',serif; font-size:15px; letter-spacing:.03em; opacity:.5; padding: 8px 16px; }
   .workspace-tab.active{ opacity:1; border-color: var(--gold); color: var(--gold); background: var(--panel); }
+
+
+  .roster-modal{ width: 420px; }
+  .roster-list{ margin-top:10px; max-height: 46vh; overflow-y:auto; border:1px solid var(--panel-line); border-radius:7px; padding:6px; background: var(--bg-soft); }
+  .roster-row{ display:flex; align-items:center; gap:9px; padding:7px 8px; border-radius:5px; cursor:pointer; font-size:15px; }
+  .roster-row:hover{ background: var(--panel); }
+  .roster-row input[type=checkbox]{ width:auto; flex-shrink:0; }
+  .roster-name{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .roster-row.is-here{ opacity:.5; cursor:default; }
+  .roster-tag{ font-family:'JetBrains Mono',monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color: var(--good); flex-shrink:0; }
 
   .mode-note{ font-size:13.5px; color: var(--muted); line-height:1.5; margin-top:8px; padding:9px 11px; background: var(--bg-soft); border:1px solid var(--panel-line); border-radius:7px; }
   .mode-note.warn{ border-color: var(--danger); color:#e0a695; }
@@ -235,19 +245,21 @@
   <div class="workspace-bar">
     <button class="workspace-tab active" id="wsLeagueBtn">🏆 League</button>
     <button class="workspace-tab" id="wsFreeplayBtn">🎲 Freeplay</button>
-    <span class="hint" style="margin:0 0 0 4px;">Two separate boards, each with its own players, tables and timer. Run both at once and flip between them. Only League counts toward the season.</span>
+    <span class="hint" style="margin:0 0 0 4px;">Two separate boards with their own players, tables and timers. Run both at once and flip between them. Only League counts toward the season.</span>
   </div>
 
   <div class="layout">
     <div>
       <div class="panel">
         <h2>Sign-in Sheet</h2>
+        <button class="block" id="openRosterBtn">👥 Add from roster</button>
         <label class="field-label">Paste names (one per line)</label>
         <textarea id="bulkInput" placeholder="Paste names from the Wizards app list here, one per line…"></textarea>
         <button class="block primary" id="bulkAddBtn">Add pasted names</button>
         <label class="field-label">Add one player</label>
         <div class="row">
-          <input type="text" id="singleInput" placeholder="Player name">
+          <input type="text" id="singleInput" placeholder="Player name" list="rosterOptions" autocomplete="off">
+          <datalist id="rosterOptions"></datalist>
           <button id="singleAddBtn">Add</button>
         </div>
         <div class="selected-note" id="selectedNote"></div>
@@ -296,7 +308,7 @@
         <h2>Display</h2>
         <button class="block" id="tvBtn">📺 Open TV display (new window)</button>
         <button class="block subtle" id="castHelpBtn">How do I get this on a TV?</button>
-        <p class="hint">Each display window has its own League/Freeplay tabs and ignores whatever you're doing here. Open one per screen.</p>
+        <p class="hint">Each display window has its own League and Freeplay tabs, so it ignores whatever you are doing here. Open one per screen.</p>
       </div>
     </div>
 
@@ -314,7 +326,7 @@
       </div>
 
       <div class="panel" style="margin-top:16px;">
-        <h2>Standings — Tonight</h2>
+        <h2>Tonight's Standings</h2>
         <div id="standingsArea"></div>
       </div>
 
@@ -339,7 +351,7 @@
 
       <div class="panel" style="margin-top:16px;">
         <h2>End of Night</h2>
-        <label class="field-label">Night label (optional — e.g. "Week 3")</label>
+        <label class="field-label">Night label, optional</label>
         <input type="text" id="nightLabelInput" placeholder="Week 3">
         <div class="bank-status" id="bankStatus"></div>
         <button class="block primary" id="bankNightBtn">🏆 Bank night to season</button>
@@ -350,7 +362,7 @@
           <button class="block primary" id="downloadLogBtn">Download log (.txt)</button>
         </div>
         <button class="block" id="newNightBtn">Start new night</button>
-        <p class="hint" id="bankHintText">Bank the night to add it to the season, then start a new night to clear the board. If you try to start a new night without banking, it'll stop and ask first.</p>
+        <p class="hint" id="bankHintText">Bank the night to add it to the season, then start a new night to clear the board. Starting a new night without banking will stop and ask you first.</p>
       </div>
 
       <div class="panel" style="margin-top:16px;">
@@ -365,7 +377,7 @@
         </div>
         <input type="file" id="importSeasonFile" accept="application/json,.json" style="display:none;">
         <button class="block danger subtle" id="resetSeasonBtn" style="margin-top:12px;">Reset season</button>
-        <p class="hint">Every time you bank a night, a <b>.json</b> lands in your Downloads folder (switch it off in Settings). Keep those. Browser storage gets wiped by cache clears, moved folders and new PCs; the file doesn't. Names are matched across nights ignoring caps and extra spaces.</p>
+        <p class="hint">Banking a night drops a <b>.json</b> in your Downloads folder. Keep those. Browser storage gets wiped by cache clears, moved folders and new PCs. The file survives all of it. Names match across nights ignoring caps and extra spaces.</p>
       </div>
     </div>
   </div>
@@ -385,11 +397,11 @@
     <input type="text" id="appNameInput" placeholder="Commander Night">
     <label class="field-label">Theme</label>
     <select id="themeSelect">
-      <option value="tavern">Tavern — gold &amp; parchment</option>
-      <option value="arcane">Arcane — violet</option>
-      <option value="verdant">Verdant — green</option>
-      <option value="crimson">Crimson — red</option>
-      <option value="slate" selected>Slate — blue-grey</option>
+      <option value="tavern">Tavern (gold)</option>
+      <option value="arcane">Arcane (violet)</option>
+      <option value="verdant">Verdant (green)</option>
+      <option value="crimson">Crimson (red)</option>
+      <option value="slate" selected>Slate (blue grey)</option>
     </select>
     <label class="field-label">Accent color</label>
     <div class="row">
@@ -403,6 +415,23 @@
     </label>
     <button class="block primary" id="saveSettingsBtn" style="margin-top:16px;">Save settings</button>
     <p class="hint" id="settingsSavedNote"></p>
+  </div>
+</div>
+
+<div class="modal-overlay" id="rosterOverlay">
+  <div class="modal roster-modal">
+    <div class="modal-head">
+      <h2>Roster</h2>
+      <button class="tiny" id="closeRosterBtn">✕</button>
+    </div>
+    <p class="hint" style="margin-top:0;">Everyone you have signed in before. Tick who is here tonight and add them in one go.</p>
+    <input type="text" id="rosterSearch" placeholder="Search the roster…">
+    <div class="roster-list" id="rosterList"></div>
+    <div class="btn-pair" style="margin-top:12px;">
+      <button class="primary" id="rosterAddBtn">Add selected</button>
+      <button id="rosterSelectAllBtn">Select all</button>
+    </div>
+    <p class="hint" id="rosterCountNote"></p>
   </div>
 </div>
 
@@ -448,7 +477,7 @@ function createEmptyNightState(){
     selectedPlayerId: null,
     nightLabel: '',          // e.g. "Week 3" — kept per workspace
     bankedId: null,           // set once this night has been banked to the season
-    timer: { minutes: 50, remaining: 50*60, running: false },
+    timer: { minutes: 50, remaining: 50*60, running: false, endsAt: null },
   };
 }
 
@@ -464,6 +493,29 @@ let idCounter = 1;
 let adjIdCounter = 1;
 let startingTableNumber = 1;
 let autoBankFile = true;
+let roster = []; // remembered player names, shared by both workspaces
+
+function rememberInRoster(name){
+  const k = nameKey(name);
+  if(!k) return;
+  if(!roster.some(r=> nameKey(r) === k)){
+    roster.push(name.trim());
+    roster.sort((a,b)=> a.localeCompare(b));
+    saveRoster();
+  }
+}
+
+async function saveRoster(){
+  try{ await storageSet('roster', JSON.stringify(roster)); }catch(e){ /* best effort */ }
+}
+
+async function loadRoster(){
+  try{
+    const raw = await storageGet('roster');
+    if(raw) roster = JSON.parse(raw) || [];
+  }catch(e){ roster = []; }
+  renderRosterDatalist();
+}
 
 // Prefers Claude's artifact storage when available (window.storage); falls back
 // to plain localStorage so the same file works as standalone local software too.
@@ -751,7 +803,7 @@ function unplacedPlayers(){
 
 function finishRound(){
   const hasAnyone = state.pods.some(p=>p.members.length>0) || state.unassigned.length>0;
-  if(!hasAnyone){ alert('Nothing to score yet — seat some players first.'); return; }
+  if(!hasAnyone){ alert('Nothing to score yet. Seat some players first.'); return; }
   const missing = unplacedPlayers();
   if(missing.length){
     alert('Set a placement for everyone seated before finishing the round (use "No placement (0pt)" for anyone who didn\'t rank).\n\nStill missing: ' + missing.join(', '));
@@ -806,7 +858,7 @@ function switchWorkspace(target){
   if(bankHint){
     bankHint.innerHTML = target === 'league'
       ? '<b>Start new night</b> banks tonight\'s standings into season stats, then clears this board.'
-      : '<b>Start new night</b> clears this board — Freeplay nights never bank to season stats.';
+      : '<b>Start new night</b> clears this board. Freeplay never counts toward the season.';
   }
   updateTimerDisplay();
   render();
@@ -848,11 +900,13 @@ function addPlayersBulk(text){
     const id = newId();
     state.players.push({id, name, dropped:false});
     state.unassigned.push(id);
+    rememberInRoster(name);
   });
+  renderRosterDatalist();
   render();
   if(dupes.length){
     alert(
-      'Heads up — these names now appear more than once tonight:\n\n' +
+      'These names appear more than once tonight:\n\n' +
       dupes.join('\n') +
       '\n\nClick the ✎ next to a player to rename them (e.g. "Alex R.") so you can tell them apart, ' +
       'and so season stats count them as different people.'
@@ -872,6 +926,8 @@ function addSinglePlayer(name){
   const id = newId();
   state.players.push({id, name, dropped:false});
   state.unassigned.push(id);
+  rememberInRoster(name);
+  renderRosterDatalist();
   render();
 }
 
@@ -963,20 +1019,6 @@ function buildPlacementSelect(pod, id, onPicked){
   return select;
 }
 
-function setRank(podIndex, playerId, rank){
-  const pod = state.pods[podIndex];
-  if(!pod || rank === null || isNaN(rank)) return;
-  if(rank > 0){
-    // Placements 1st-4th are exclusive — bumping someone else out if reassigned.
-    Object.keys(pod.ranks).forEach(pid=>{
-      if(pod.ranks[pid] === rank) delete pod.ranks[pid];
-    });
-  }
-  // rank 0 ("no placement") can be held by more than one player — no clearing.
-  pod.ranks[playerId] = rank;
-  render();
-}
-
 function playerNameIn(ws, id){
   const p = ws.players.find(p=>p.id===id);
   return p ? p.name : 'Unknown player';
@@ -986,7 +1028,6 @@ function playerName(id){ return playerNameIn(state, id); }
 function totalAdjustmentIn(ws, id){
   return ws.adjustmentLog.filter(e=>e.playerId===id).reduce((sum,e)=>sum+e.delta, 0);
 }
-function totalAdjustment(id){ return totalAdjustmentIn(state, id); }
 
 function applyAdjustment(playerId, delta, note){
   state.adjustmentLog.push({ id: 'adj'+(adjIdCounter++), playerId, delta, note: note||'', time: new Date().toISOString() });
@@ -1024,49 +1065,96 @@ function computeStandingsFor(ws){
 function computeStandings(){ return computeStandingsFor(state); }
 
 // ---------- Timer ----------
+// The countdown is derived from a wall-clock end time rather than counted down
+// tick by tick. Browsers throttle timers in background windows (Chrome drops to
+// about once a minute), which would make a tick-based clock run slow whenever
+// the TV window is in front. Reading the clock each tick keeps it accurate no
+// matter how often the interval actually fires, and lets a running timer
+// survive a refresh.
+function timerRemaining(ws){
+  const t = workspaces[ws].timer;
+  if(t.running && t.endsAt) return Math.max(0, Math.round((t.endsAt - Date.now())/1000));
+  return Math.max(0, t.remaining);
+}
+
 function updateTimerDisplay(){
+  const secs = timerRemaining(currentWorkspace);
   const el = document.getElementById('timerDisplay');
-  if(el){ el.textContent = fmtTime(state.timer.remaining); el.className = 'timer-display' + (state.timer.remaining===0 ? ' zero' : ''); }
+  if(el){ el.textContent = fmtTime(secs); el.className = 'timer-display' + (secs===0 ? ' zero' : ''); }
   const btn = document.getElementById('timerToggleBtn');
-  if(btn) btn.textContent = state.timer.running ? 'Pause' : (state.timer.remaining===0 ? 'Restart' : 'Start');
+  if(btn) btn.textContent = state.timer.running ? 'Pause' : (secs===0 ? 'Restart' : 'Start');
   renderTVWindow();
 }
+
+function tickTimer(ws){
+  const st = workspaces[ws];
+  const secs = timerRemaining(ws);
+  if(secs <= 0){
+    st.timer.running = false;
+    st.timer.remaining = 0;
+    st.timer.endsAt = null;
+    if(timerIntervals[ws]){ clearInterval(timerIntervals[ws]); timerIntervals[ws] = null; }
+  }
+  if(currentWorkspace === ws) updateTimerDisplay();
+  else renderTVWindow(); // other workspace may still be on a TV screen
+}
+
 function startTimer(){
   const ws = currentWorkspace;
   const st = workspaces[ws];
   if(st.timer.running) return;
   if(st.timer.remaining <= 0) st.timer.remaining = st.timer.minutes*60;
+  st.timer.endsAt = Date.now() + st.timer.remaining*1000;
   st.timer.running = true;
-  timerIntervals[ws] = setInterval(()=>{
-    const s = workspaces[ws];
-    s.timer.remaining -= 1;
-    if(s.timer.remaining <= 0){
-      s.timer.remaining = 0; s.timer.running = false;
-      clearInterval(timerIntervals[ws]); timerIntervals[ws] = null;
-    }
-    if(currentWorkspace === ws) updateTimerDisplay();
-  }, 1000);
+  if(timerIntervals[ws]) clearInterval(timerIntervals[ws]);
+  // 250ms so the display stays responsive; accuracy comes from the clock, not this rate.
+  timerIntervals[ws] = setInterval(()=> tickTimer(ws), 250);
   updateTimerDisplay();
+  scheduleLiveSave();
 }
+
 function pauseTimer(){
   const ws = currentWorkspace;
-  workspaces[ws].timer.running = false;
+  const st = workspaces[ws];
+  st.timer.remaining = timerRemaining(ws);
+  st.timer.running = false;
+  st.timer.endsAt = null;
   if(timerIntervals[ws]){ clearInterval(timerIntervals[ws]); timerIntervals[ws] = null; }
   updateTimerDisplay();
+  scheduleLiveSave();
 }
+
 function resetTimer(){
   const ws = currentWorkspace;
   const st = workspaces[ws];
   st.timer.running = false;
+  st.timer.endsAt = null;
   if(timerIntervals[ws]){ clearInterval(timerIntervals[ws]); timerIntervals[ws] = null; }
   st.timer.remaining = st.timer.minutes*60;
+  updateTimerDisplay();
+  scheduleLiveSave();
+}
+
+// Restart intervals for any workspace whose timer was running when the page was
+// last open, so a refresh mid-round doesn't stop the clock.
+function resumeRunningTimers(){
+  ['league','freeplay'].forEach(ws=>{
+    const t = workspaces[ws].timer;
+    if(!t.running || !t.endsAt) return;
+    if(t.endsAt <= Date.now()){
+      t.running = false; t.remaining = 0; t.endsAt = null;
+      return;
+    }
+    if(timerIntervals[ws]) clearInterval(timerIntervals[ws]);
+    timerIntervals[ws] = setInterval(()=> tickTimer(ws), 250);
+  });
   updateTimerDisplay();
 }
 
 // ---------- TV window ----------
 function tvShellHTML(winId){
   const t = getThemeVars();
-  return `<!DOCTYPE html><html><head><title>${appName} — Display</title>
+  return `<!DOCTYPE html><html><head><title>${appName} Display</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@600&display=swap" rel="stylesheet">
 <style>
@@ -1132,7 +1220,7 @@ let lastTVWorkspace = 'league';
 function openTVWindow(){
   const id = 'tv' + (tvWinIdCounter++);
   const win = window.open('', '', 'width=1400,height=900');
-  if(!win){ alert('Your browser blocked the pop-up — allow pop-ups for this page to open the TV display.'); return; }
+  if(!win){ alert('Your browser blocked the pop-up. Allow pop-ups for this page to open the TV display.'); return; }
   win.document.open();
   win.document.write(tvShellHTML(id));
   win.document.close();
@@ -1162,8 +1250,9 @@ function renderOneTVWindow(entry){
 
   const timerEl = doc.getElementById('tvTimer');
   if(timerEl){
-    timerEl.textContent = fmtTime(ws.timer.remaining);
-    timerEl.className = 'timer' + (ws.timer.remaining===0 ? ' zero' : '');
+    const secs = timerRemaining(entry.workspace);
+    timerEl.textContent = fmtTime(secs);
+    timerEl.className = 'timer' + (secs===0 ? ' zero' : '');
   }
 
   const standingsEl = doc.getElementById('tvStandings');
@@ -1192,7 +1281,7 @@ function renderOneTVWindow(entry){
       }).join('');
       if(ws.unassigned.length){
         const byes = ws.unassigned.map(id=>`<div class="player">${playerNameIn(ws, id)}</div>`).join('');
-        html += `<div class="pod bye"><h3>Bye</h3>${byes}<div class="muted" style="margin-top:8px;">Sitting out — still earns the attendance point</div></div>`;
+        html += `<div class="pod bye"><h3>Bye</h3>${byes}<div class="muted" style="margin-top:8px;">Sitting out. Still gets the attendance point</div></div>`;
       }
       podsEl.innerHTML = html;
     }
@@ -1207,7 +1296,7 @@ function renderTVWindow(){
 // ---------- Store Stats window ----------
 function storeStatsShellHTML(){
   const t = getThemeVars();
-  return `<!DOCTYPE html><html><head><title>${appName} — Store Stats</title>
+  return `<!DOCTYPE html><html><head><title>${appName} Store Stats</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
 <style>
@@ -1219,6 +1308,10 @@ function storeStatsShellHTML(){
   .summary-card{background:${t.panel};border:1px solid ${t.panelLine};border-radius:12px;padding:16px 20px;min-width:140px;}
   .summary-card b{display:block;font-size:30px;font-family:'JetBrains Mono',monospace;color:${t.gold};}
   .summary-card span{font-size:11px;color:${t.muted};text-transform:uppercase;letter-spacing:.06em;}
+  .summary-card.wide{flex:1;min-width:220px;}
+  .summary-card.wide b{font-family:'Old Fenris','Cinzel',serif;font-size:26px;}
+  .legend{font-size:13px;color:${t.muted};margin:14px 0 0;line-height:1.5;}
+  .night-row span.muted{text-align:right;line-height:1.5;}
   .stats-layout{display:grid;grid-template-columns:1.4fr 1fr;gap:24px;align-items:start;}
   @media (max-width:900px){ .stats-layout{grid-template-columns:1fr;} }
   .s-panel{background:${t.panel};border:1px solid ${t.panelLine};border-radius:14px;padding:22px;}
@@ -1232,7 +1325,7 @@ function storeStatsShellHTML(){
   .muted{color:${t.muted};}
 </style></head><body>
 <h1 id="statsAppName">${appName}</h1>
-<div class="sub">Store Statistics — Season Overview</div>
+<div class="sub">Season Overview</div>
 <div class="summary-row" id="statsSummary"></div>
 <div class="stats-layout">
   <div class="s-panel"><h2>Season Leaderboard</h2><div id="statsLeaderboard"></div></div>
@@ -1243,7 +1336,7 @@ function storeStatsShellHTML(){
 
 function openStoreStatsWindow(){
   statsWindow = window.open('', 'commanderStoreStats', 'width=1300,height=880');
-  if(!statsWindow){ alert('Your browser blocked the pop-up — allow pop-ups for this page to open Store Stats.'); return; }
+  if(!statsWindow){ alert('Your browser blocked the pop-up. Allow pop-ups for this page to open Store Stats.'); return; }
   statsWindow.document.open();
   statsWindow.document.write(storeStatsShellHTML());
   statsWindow.document.close();
@@ -1262,28 +1355,40 @@ function renderStoreStatsWindow(){
   const totalPlayers = standings.length;
   const totalNights = seasonArchive.length;
   const totalRounds = seasonArchive.reduce((sum,n)=> sum + (n.totalRounds||0), 0);
-  const topScorer = standings[0];
+  const leader = standings[0];
+  const avgPlayers = totalNights
+    ? Math.round(seasonArchive.reduce((s,n)=> s + n.standings.length, 0) / totalNights)
+    : 0;
 
   const summaryEl = doc.getElementById('statsSummary');
   if(summaryEl){
     summaryEl.innerHTML = `
-      <div class="summary-card"><b>${totalNights}</b><span>Nights banked</span></div>
-      <div class="summary-card"><b>${totalPlayers}</b><span>Season players</span></div>
+      <div class="summary-card"><b>${totalNights}</b><span>Nights run</span></div>
+      <div class="summary-card"><b>${totalPlayers}</b><span>Different players</span></div>
+      <div class="summary-card"><b>${avgPlayers}</b><span>Average turnout</span></div>
       <div class="summary-card"><b>${totalRounds}</b><span>Rounds played</span></div>
-      <div class="summary-card"><b>${topScorer ? topScorer.points : '—'}</b><span>${topScorer ? topScorer.name + ' — leader' : 'No leader yet'}</span></div>
+      <div class="summary-card wide"><b>${leader ? leader.name : 'Nobody yet'}</b><span>${leader ? 'Season leader, ' + leader.points + ' pts' : 'Season leader'}</span></div>
     `;
   }
 
   const lbEl = doc.getElementById('statsLeaderboard');
   if(lbEl){
     if(standings.length === 0){
-      lbEl.innerHTML = '<p class="muted">No nights banked to the season yet.</p>';
+      lbEl.innerHTML = '<p class="muted">Nothing here until you bank a night. Score some rounds, then use Bank night to season.</p>';
     } else {
-      let html = '<table><thead><tr><th>#</th><th>Player</th><th>Nights</th><th>Rounds</th><th>Best</th><th>Total</th></tr></thead><tbody>';
+      let html = '<table><thead><tr>' +
+        '<th>#</th><th>Player</th>' +
+        '<th title="Nights they showed up to">Nights</th>' +
+        '<th title="Total rounds played across the season">Rounds</th>' +
+        '<th title="Number of tables they won outright">Wins</th>' +
+        '<th title="Their highest score on a single night">Best night</th>' +
+        '<th title="Season points, all nights added up">Points</th>' +
+        '</tr></thead><tbody>';
       standings.forEach((s,i)=>{
-        html += `<tr><td>${i+1}</td><td>${s.name}</td><td>${s.nights}</td><td>${s.rounds}</td><td>${s.best}</td><td class="pts">${s.points}</td></tr>`;
+        html += `<tr><td>${i+1}</td><td>${s.name}</td><td>${s.nights}</td><td>${s.rounds}</td><td>${s.wins}</td><td>${s.best}</td><td class="pts">${s.points}</td></tr>`;
       });
       html += '</tbody></table>';
+      html += '<p class="legend">Sorted by points. Ties break on table wins, then nights attended.</p>';
       lbEl.innerHTML = html;
     }
   }
@@ -1291,12 +1396,16 @@ function renderStoreStatsWindow(){
   const nightsEl = doc.getElementById('statsNights');
   if(nightsEl){
     if(seasonArchive.length === 0){
-      nightsEl.innerHTML = '<p class="muted">—</p>';
+      nightsEl.innerHTML = '<p class="muted">No nights banked yet.</p>';
     } else {
       nightsEl.innerHTML = [...seasonArchive].reverse().map(night=>{
         const d = new Date(night.date);
         const label = night.label ? night.label : d.toLocaleDateString(undefined,{month:'short', day:'numeric', year:'numeric'});
-        return `<div class="night-row"><span>${label}</span><span class="muted">${night.standings.length} players · ${night.totalRounds||0} rounds</span></div>`;
+        const winner = [...night.standings].sort((a,b)=> b.points-a.points)[0];
+        return `<div class="night-row"><span>${label}</span>` +
+          `<span class="muted">${night.standings.length} players, ${night.totalRounds||0} rounds` +
+          (winner ? `<br>Won by ${winner.name} (${winner.points})` : '') +
+          `</span></div>`;
       }).join('');
     }
   }
@@ -1304,7 +1413,7 @@ function renderStoreStatsWindow(){
 function buildLogText(){
   const d = new Date();
   const lines = [];
-  lines.push((appName || 'COMMANDER NIGHT').toUpperCase() + ' LOG — ' + d.toLocaleDateString(undefined,{year:'numeric',month:'long',day:'numeric'}) + ' (' + (currentWorkspace === 'league' ? 'League' : 'Freeplay') + ')');
+  lines.push((appName || 'COMMANDER NIGHT').toUpperCase() + ' LOG, ' + d.toLocaleDateString(undefined,{year:'numeric',month:'long',day:'numeric'}) + ' (' + (currentWorkspace === 'league' ? 'League' : 'Freeplay') + ')');
   lines.push('='.repeat(44));
   lines.push('');
   if(state.rounds.length === 0){
@@ -1322,7 +1431,7 @@ function buildLogText(){
       ranked.forEach(id=>{
         const r = pod.ranks[id];
         const label = (r === undefined) ? 'no placement recorded' : (r === 0 ? 'No placement (0 pt)' : `${ordinal(r)} place (${pointsForRank(r)} pt)`);
-        lines.push(`    - ${playerName(id)} — ${label}`);
+        lines.push(`    - ${playerName(id)}: ${label}`);
       });
     });
     if(round.byes.length){
@@ -1339,7 +1448,7 @@ function buildLogText(){
     lines.push('POINT ADJUSTMENTS');
     lines.push('-'.repeat(44));
     state.adjustmentLog.forEach(e=>{
-      lines.push(`${playerName(e.playerId)}: ${e.delta>0?'+':''}${e.delta}${e.note ? ' — '+e.note : ''}`);
+      lines.push(`${playerName(e.playerId)}: ${e.delta>0?'+':''}${e.delta}${e.note ? ' ('+e.note+')' : ''}`);
     });
     lines.push('');
   }
@@ -1348,7 +1457,7 @@ function buildLogText(){
   const standings = computeStandings();
   standings.forEach((s,i)=>{
     const adjText = s.adjustment ? `, adj ${s.adjustment>0?'+':''}${s.adjustment}` : '';
-    lines.push(`${i+1}. ${s.name} — ${s.points} pts (${s.rounds} rounds${adjText})${s.dropped ? ' [dropped]' : ''}`);
+    lines.push(`${i+1}. ${s.name}: ${s.points} pts (${s.rounds} rounds${adjText})${s.dropped ? ' [dropped]' : ''}`);
   });
   return lines.join('\n');
 }
@@ -1382,8 +1491,15 @@ async function loadSeason(){
   }catch(e){ /* nothing archived yet */ }
   renderSeasonStats();
 }
+let seasonSaveWarned = false;
 async function saveSeasonArchive(){
-  try{ await storageSet('season-archive', JSON.stringify(seasonArchive)); }catch(e){ /* best effort */ }
+  let ok = false;
+  try{ ok = await storageSet('season-archive', JSON.stringify(seasonArchive)); }catch(e){ ok = false; }
+  if(!ok && !seasonSaveWarned){
+    seasonSaveWarned = true;
+    alert('Your season could not be saved to this browser.\n\nEverything on screen still works, but it will be lost when you close the app. Use Export backup in Season Stats to save it to a file right now.');
+  }
+  if(ok) seasonSaveWarned = false;
 }
 function bankNightToSeason(){
   if(currentWorkspace !== 'league'){ alert('Only League nights bank to season stats.'); return false; }
@@ -1456,14 +1572,32 @@ function computeSeasonStandings(){
     night.standings.forEach(s=>{
       const key = nameKey(s.name);
       if(!key) return;
-      if(!map[key]) map[key] = {name: s.name, points:0, rounds:0, nights:0, best:0};
+      if(!map[key]) map[key] = {name: s.name, points:0, rounds:0, nights:0, best:0, wins:0};
       map[key].points += s.points;
       map[key].rounds += s.rounds;
       map[key].nights += 1;
       map[key].best = Math.max(map[key].best, s.points);
     });
+
+    // Count table wins from the stored snapshot, where we still have placements.
+    const snap = night.snapshot;
+    if(snap && Array.isArray(snap.rounds) && Array.isArray(snap.players)){
+      const nameById = {};
+      snap.players.forEach(p=>{ nameById[p.id] = p.name; });
+      snap.rounds.forEach(rd=>{
+        (rd.pods||[]).forEach(pod=>{
+          Object.keys(pod.ranks||{}).forEach(pid=>{
+            if(pod.ranks[pid] !== 1) return;
+            const key = nameKey(nameById[pid]);
+            if(key && map[key]) map[key].wins += 1;
+          });
+        });
+      });
+    }
   });
-  return Object.values(map).sort((a,b)=> b.points-a.points || a.name.localeCompare(b.name));
+  return Object.values(map).sort((a,b)=>
+    b.points - a.points || b.wins - a.wins || b.nights - a.nights || a.name.localeCompare(b.name)
+  );
 }
 function renderSeasonStats(){
   const countEl = document.getElementById('seasonNightsCount');
@@ -1473,7 +1607,7 @@ function renderSeasonStats(){
   if(area){
     const standings = computeSeasonStandings();
     if(standings.length === 0){
-      area.innerHTML = '<p class="hint" style="margin-top:0;">No completed nights banked yet — stats appear here after you use "Start new night".</p>';
+      area.innerHTML = '<p class="hint" style="margin-top:0;">Nothing banked yet. Nights show up here once you bank them.</p>';
     } else {
       const table = document.createElement('table');
       table.className = 'standings';
@@ -1502,7 +1636,7 @@ function renderSeasonStats(){
         const d = new Date(night.date);
         const left = document.createElement('span');
         left.className = 'season-night-label';
-        left.textContent = (night.label ? night.label + ' — ' : '') + d.toLocaleDateString(undefined,{month:'short', day:'numeric', year:'numeric'});
+        left.textContent = (night.label ? night.label + ', ' : '') + d.toLocaleDateString(undefined,{month:'short', day:'numeric', year:'numeric'});
         const meta = document.createElement('span');
         meta.className = 'muted season-night-meta';
         meta.textContent = night.standings.length + ' players';
@@ -1575,6 +1709,7 @@ function exportSeasonBackup(){
     version: 1,
     exportedAt: new Date().toISOString(),
     appName,
+    roster,
     seasonArchive,
   }, `commander-season-backup-${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}.json`);
 }
@@ -1602,8 +1737,15 @@ function importSeasonBackup(file){
       seasonArchive.sort((a,b)=> new Date(a.date) - new Date(b.date));
     }
     await saveSeasonArchive();
+    if(Array.isArray(parsed.roster) && parsed.roster.length){
+      const seenNames = new Set(roster.map(nameKey));
+      parsed.roster.forEach(n=>{ if(n && !seenNames.has(nameKey(n))){ roster.push(n); seenNames.add(nameKey(n)); } });
+      roster.sort((a,b)=> a.localeCompare(b));
+      await saveRoster();
+      renderRosterDatalist();
+    }
     renderSeasonStats();
-    alert(`Season backup loaded — ${seasonArchive.length} night(s) now in the season.`);
+    alert(`Backup loaded. ${seasonArchive.length} night(s) now in the season.`);
   };
   reader.readAsText(file);
 }
@@ -1656,7 +1798,7 @@ function applyTheme(name, accentHex){
 
 function applyAppName(name){
   appName = (name && name.trim()) ? name.trim() : 'Commander Night';
-  document.title = appName + ' — Magic: The Gathering Commander Pod Maker';
+  document.title = appName + ' · Magic: The Gathering Commander';
   const h = document.getElementById('appNameHeading');
   if(h) h.textContent = appName;
   renderTVWindow();
@@ -1672,7 +1814,7 @@ async function saveSettings(){
   applyAppName(name);
   const note = document.getElementById('settingsSavedNote');
   const ok = await storageSet('settings', JSON.stringify({theme, accent, appName, autoBankFile}));
-  note.textContent = ok ? 'Saved — this will load automatically next time you open the app.' : 'Applied for this session, but the setting could not be saved.';
+  note.textContent = ok ? 'Saved. This loads automatically next time you open the app.' : 'Applied for this session, but the setting could not be saved.';
 }
 
 async function loadSettings(){
@@ -1707,7 +1849,7 @@ function serializeWorkspace(ws){
     adjustmentLog: ws.adjustmentLog,
     nightLabel: ws.nightLabel || '',
     bankedId: ws.bankedId || null,
-    timer: { minutes: ws.timer.minutes, remaining: ws.timer.remaining },
+    timer: { minutes: ws.timer.minutes, remaining: ws.timer.remaining, running: ws.timer.running, endsAt: ws.timer.endsAt || null },
   };
 }
 async function saveLiveNight(){
@@ -1753,7 +1895,12 @@ async function loadLiveNight(){
         target.adjustmentLog = w.adjustmentLog || [];
         target.nightLabel = w.nightLabel || '';
         target.bankedId = w.bankedId || null;
-        target.timer = { minutes: (w.timer && w.timer.minutes) || 50, remaining: (w.timer && w.timer.remaining) != null ? w.timer.remaining : 50*60, running: false };
+        target.timer = {
+          minutes: (w.timer && w.timer.minutes) || 50,
+          remaining: (w.timer && w.timer.remaining) != null ? w.timer.remaining : 50*60,
+          running: !!(w.timer && w.timer.running),
+          endsAt: (w.timer && w.timer.endsAt) || null,
+        };
         target.selectedPlayerId = null;
       });
     }
@@ -1770,6 +1917,7 @@ async function loadLiveNight(){
     document.getElementById('roundLengthInput').value = state.timer.minutes;
     document.getElementById('startingTableInput').value = startingTableNumber;
     document.getElementById('nightLabelInput').value = state.nightLabel || '';
+    resumeRunningTimers();
     updateTimerDisplay();
     render();
   }catch(e){ /* nothing usable to restore */ }
@@ -1896,7 +2044,7 @@ function render(){
 }
 
 const SEATING_NOTES = {
-  random: 'Everyone gets mixed up. The app avoids putting the same people together twice where it can. Best for most rounds — keeps the night social.',
+  random: 'Everyone gets mixed up. The app avoids putting the same people together twice where it can. Best for most rounds, and keeps the night social.',
   score: 'Players on similar points sit together, so the leaders end up at one table. Good for a final round. With a small turnout this repeats pods quickly.',
   balanced: 'Spreads the leaders across different tables so no single table is stacked. Keeps games close when skill levels vary a lot.',
 };
@@ -1911,6 +2059,120 @@ function renderSeatingNote(){
   if(needsScores){
     el.textContent += ' Nobody has points yet, so this round will come out random anyway.';
   }
+}
+
+function renderRosterDatalist(){
+  const dl = document.getElementById('rosterOptions');
+  if(!dl) return;
+  dl.innerHTML = '';
+  roster.forEach(name=>{
+    const o = document.createElement('option');
+    o.value = name;
+    dl.appendChild(o);
+  });
+}
+
+let rosterChecked = new Set();
+
+function openRoster(){
+  rosterChecked = new Set();
+  document.getElementById('rosterSearch').value = '';
+  document.getElementById('rosterOverlay').style.display = 'flex';
+  renderRosterList();
+}
+
+function signedInKeys(){
+  return new Set(state.players.map(p=> nameKey(p.name)));
+}
+
+function renderRosterList(){
+  const listEl = document.getElementById('rosterList');
+  const noteEl = document.getElementById('rosterCountNote');
+  if(!listEl) return;
+  const q = nameKey(document.getElementById('rosterSearch').value);
+  const here = signedInKeys();
+  const shown = roster.filter(n=> !q || nameKey(n).includes(q));
+
+  listEl.innerHTML = '';
+  if(roster.length === 0){
+    listEl.innerHTML = '<p class="hint" style="margin:0;">Nobody saved yet. Names land here on their own as you sign people in.</p>';
+  } else if(shown.length === 0){
+    listEl.innerHTML = '<p class="hint" style="margin:0;">No match.</p>';
+  } else {
+    shown.forEach(name=>{
+      const k = nameKey(name);
+      const alreadyHere = here.has(k);
+      const row = document.createElement('label');
+      row.className = 'roster-row' + (alreadyHere ? ' is-here' : '');
+
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.disabled = alreadyHere;
+      cb.checked = rosterChecked.has(k);
+      cb.addEventListener('change', ()=>{
+        if(cb.checked) rosterChecked.add(k); else rosterChecked.delete(k);
+        updateRosterCount();
+      });
+      row.appendChild(cb);
+
+      const nm = document.createElement('span');
+      nm.className = 'roster-name';
+      nm.textContent = name;
+      row.appendChild(nm);
+
+      if(alreadyHere){
+        const tag = document.createElement('span');
+        tag.className = 'roster-tag';
+        tag.textContent = 'here';
+        row.appendChild(tag);
+      } else {
+        const del = document.createElement('button');
+        del.className = 'tiny danger'; del.textContent = '✕';
+        del.title = 'Remove from roster';
+        del.addEventListener('click', (e)=>{
+          e.preventDefault(); e.stopPropagation();
+          if(!confirm(`Remove "${name}" from the saved roster? This won't touch any past results.`)) return;
+          roster = roster.filter(r=> nameKey(r) !== k);
+          rosterChecked.delete(k);
+          saveRoster();
+          renderRosterDatalist();
+          renderRosterList();
+        });
+        row.appendChild(del);
+      }
+      listEl.appendChild(row);
+    });
+  }
+  updateRosterCount();
+  if(noteEl && roster.length){
+    const hereCount = roster.filter(n=> here.has(nameKey(n))).length;
+    noteEl.textContent = `${roster.length} saved · ${hereCount} already signed in tonight`;
+  } else if(noteEl){
+    noteEl.textContent = '';
+  }
+}
+
+function updateRosterCount(){
+  const btn = document.getElementById('rosterAddBtn');
+  if(btn) btn.textContent = rosterChecked.size ? `Add selected (${rosterChecked.size})` : 'Add selected';
+}
+
+function addCheckedFromRoster(){
+  if(rosterChecked.size === 0){ alert('Tick a few names first.'); return; }
+  const here = signedInKeys();
+  let added = 0;
+  roster.forEach(name=>{
+    const k = nameKey(name);
+    if(!rosterChecked.has(k) || here.has(k)) return;
+    const id = newId();
+    state.players.push({id, name, dropped:false});
+    state.unassigned.push(id);
+    added++;
+  });
+  rosterChecked = new Set();
+  document.getElementById('rosterOverlay').style.display = 'none';
+  render();
+  if(added) alert(`${added} player${added===1?'':'s'} signed in.`);
 }
 
 function renderBankStatus(){
@@ -1973,7 +2235,7 @@ function renderAdjustmentLog(){
     row.className = 'dropped-row';
     const label = document.createElement('span');
     const sign = entry.delta > 0 ? '+' : '';
-    label.textContent = `${playerName(entry.playerId)} ${sign}${entry.delta}${entry.note ? ' — '+entry.note : ''}`;
+    label.textContent = `${playerName(entry.playerId)} ${sign}${entry.delta}${entry.note ? ' ('+entry.note+')' : ''}`;
     const delBtn = document.createElement('button');
     delBtn.className = 'tiny danger'; delBtn.textContent = 'Remove';
     delBtn.addEventListener('click', ()=>{
@@ -2107,7 +2369,7 @@ function makeChip(id){
     const warn = document.createElement('span');
     warn.className = 'dupe-flag';
     warn.textContent = '!';
-    warn.title = 'Another player tonight has this exact name — rename one of them';
+    warn.title = 'Another player tonight has this exact name. Rename one of them.';
     chip.appendChild(warn);
   }
   const ren = document.createElement('span');
@@ -2265,7 +2527,7 @@ document.getElementById('renumberBtn').addEventListener('click', renumberTables)
 document.getElementById('seatingModeSelect').addEventListener('change', renderSeatingNote);
 document.getElementById('finishRoundBtn').addEventListener('click', finishRound);
 document.getElementById('undoRoundBtn').addEventListener('click', ()=>{
-  if(confirm('Revert the most recently finished round? Its scoring will be undone and its tables restored to the board — any changes made to the current board since then will be lost.')) undoLastRound();
+  if(confirm('Revert the last round? Its scores come off and its tables go back on the board. Anything you have set up since then will be lost.')) undoLastRound();
 });
 document.getElementById('tvBtn').addEventListener('click', openTVWindow);
 document.getElementById('castHelpBtn').addEventListener('click', ()=>{
@@ -2275,17 +2537,17 @@ document.getElementById('castHelpBtn').addEventListener('click', ()=>{
     (appMode
       ? 'NOTE: you launched in app mode (no address bar). Chromecast needs the\n' +
         'browser menu, which app mode hides. Use "Launch Commander Night\n' +
-        '(Casting Mode).bat" instead on nights you want to cast — or use HDMI,\n' +
+        '(Casting Mode).bat" instead on nights you want to cast, or use HDMI,\n' +
         'which works either way.\n\n'
       : '') +
     'CHROMECAST / GOOGLE TV / ANDROID TV\n' +
     '  1. Launch using "Launch Commander Night (Casting Mode).bat"\n' +
-    '  2. Click "Open TV display" — you cast THAT window, not this one\n' +
+    '  2. Click "Open TV display". You cast THAT window, not this one\n' +
     '  3. Browser menu (three dots, top-right) > "Cast..."\n' +
     '  4. Pick your TV, set Sources to "Cast tab"\n' +
     '  5. Press F11 on the TV display window for fullscreen\n' +
     '  Both devices must be on the same Wi-Fi.\n\n' +
-    'HDMI CABLE — most reliable, works in either launcher\n' +
+    'HDMI CABLE (most reliable, works in either launcher)\n' +
     '  1. Plug the PC into the TV\n' +
     '  2. Press Windows key + P, choose "Extend"\n' +
     '  3. Drag the TV display window onto the TV, press F11\n\n' +
@@ -2313,13 +2575,32 @@ document.getElementById('roundLengthInput').addEventListener('change', (e)=>{
 });
 document.getElementById('startingTableInput').addEventListener('change', renumberTables);
 
+document.getElementById('openRosterBtn').addEventListener('click', openRoster);
+document.getElementById('closeRosterBtn').addEventListener('click', ()=>{
+  document.getElementById('rosterOverlay').style.display = 'none';
+});
+document.getElementById('rosterOverlay').addEventListener('click', (e)=>{
+  if(e.target.id === 'rosterOverlay') document.getElementById('rosterOverlay').style.display = 'none';
+});
+document.getElementById('rosterSearch').addEventListener('input', renderRosterList);
+document.getElementById('rosterAddBtn').addEventListener('click', addCheckedFromRoster);
+document.getElementById('rosterSelectAllBtn').addEventListener('click', ()=>{
+  const q = nameKey(document.getElementById('rosterSearch').value);
+  const here = signedInKeys();
+  const shown = roster.filter(n=> (!q || nameKey(n).includes(q)) && !here.has(nameKey(n)));
+  const allOn = shown.every(n=> rosterChecked.has(nameKey(n)));
+  shown.forEach(n=>{ if(allOn) rosterChecked.delete(nameKey(n)); else rosterChecked.add(nameKey(n)); });
+  renderRosterList();
+});
+
+
 document.getElementById('finalizeBtn').addEventListener('click', finalizeNight);
 document.getElementById('bankNightBtn').addEventListener('click', ()=>{
   const label = state.nightLabel ? `"${state.nightLabel}"` : 'this night';
   if(confirm(`Bank ${label} into season standings?\n\nYou can unbank it later from the Season Stats panel if something's wrong.`)){
     if(bankNightToSeason()){
       alert(autoBankFile
-        ? 'Banked to the season.\n\nA season .json file has been saved to your Downloads folder — keep it somewhere safe.'
+        ? 'Banked to the season.\n\nA season .json file went to your Downloads folder. Keep it somewhere safe.'
         : 'Banked to the season.\n\nAuto-save is off, so remember to use Export backup in Season Stats.');
     }
   }
@@ -2378,6 +2659,7 @@ document.getElementById('appNameInput').addEventListener('input', (e)=> applyApp
 render();
 loadSettings();
 loadSeason();
+loadRoster();
 loadLiveNight();
 </script>
 </body>
