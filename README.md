@@ -58,10 +58,15 @@ you want a table of 4 with one bye, or a 3 and a 2.
 
 **Rounds.** Set a length, hit start. The clock runs off real time, so it stays
 accurate when the window is behind your TV display and it survives a refresh.
+The TV shows the round number.
 
-Score placements 1st through 4th, or No placement for anyone who did not rank.
-Everyone seated or on a bye gets an attendance point. Every seated player needs
-a placement before the round will close.
+Scoring defaults to eliminations: 1 point per kill, 1 for the last player out,
+2 for winning the pod. Enter what the table reports. Nothing is forced, so a
+timed out game simply has no winner and an unattributed death has no killer.
+Placement scoring, 1st through 4th, is available in Settings instead.
+
+Each table shows whether it has been recorded yet, and the Finish round button
+sits under the tables with a running count of how many are done.
 
 **Fixing mistakes.** Revert last round takes the scores back off and puts those
 tables up again. Round history lets you open any past round and change
@@ -73,9 +78,11 @@ tables and timers. Run both at once and flip between them. Only League counts
 toward the season.
 
 **Seasons.** Bank a night and it joins the season standings. Store Stats shows
-the leaderboard with nights attended, rounds played, table wins and best night.
-Ties break on wins, then attendance. Banking also drops a JSON backup in your
-Downloads folder, which is the copy that survives a wiped browser or a new PC.
+the leaderboard with nights attended, rounds played, pod wins, kills and best
+night. Ties break on wins, then kills, then nights attended. Banking also drops
+a JSON backup in your Downloads folder, which is the copy that survives a wiped
+browser or a new PC. Season Stats can also export CSV, either season totals or
+a row per player per night, for opening in Excel or Sheets.
 
 **Roster.** Every name you sign in gets remembered. Next week, tick the people
 who showed up instead of typing the list again.

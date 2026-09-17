@@ -68,6 +68,9 @@
   .spread-labels{display:flex;justify-content:space-between;font-family:'JetBrains Mono',monospace;
     font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:-2px 0 4px;}
   #spreadName{color:var(--accent);}
+  td.bar{width:90px;padding:11px 6px;}
+  td.bar span{display:block;height:9px;border-radius:4px;background:var(--accent);min-width:2px;}
+  tr.empty td.bar span{background:var(--panel-line);}
   tr.empty td{opacity:.4;}
   #weights{max-height:230px;overflow-y:auto;padding-right:4px;}
   .wrow{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
@@ -100,6 +103,12 @@
         </div>
         <label class="f">Or type a pool directly</label>
         <input type="number" id="poolOverride" placeholder="blank uses the numbers above" min="0" step="1">
+
+        <label class="f">Hold back for season %</label>
+        <div class="row">
+          <input type="number" id="holdBack" value="0" min="0" max="90" step="1">
+          <button id="holdClearBtn" title="Pay everything out tonight">None</button>
+        </div>
         <div class="pool-box">
           <div class="pool-big" id="poolBig">$160</div>
           <div class="pool-sub" id="poolSub"></div>
@@ -114,7 +123,7 @@
         </div>
         <div id="packCostWrap">
           <label class="f">Cost per pack or unit</label>
-          <input type="number" id="packCost" value="4" min="0.5" step="0.25">
+          <input type="number" id="packCost" value="5" min="0.5" step="0.25">
           <p class="weights-note">Use what a pack or unit costs you, not retail. That is what you can actually hand out.</p>
         </div>
         <div id="creditWrap" style="display:none;">
@@ -124,13 +133,21 @@
       </div>
 
       <div class="panel">
-        <h2>Structure</h2>
+        <h2>Who Gets Paid</h2>
         <label class="f">Places paid</label>
         <div class="row">
           <input type="number" id="places" value="8" min="1" max="32">
           <button id="allBtn" title="Pay every player">Pay all</button>
         </div>
+        <div class="row" style="margin-top:8px;">
+          <input type="number" id="payTopPct" placeholder="or top %" min="1" max="100" step="5">
+          <button id="applyPctBtn">Use %</button>
+        </div>
+        <p class="weights-note" id="pctNote">Type 50 to pay the top half. Places are worked out from the player count and rounded up.</p>
+      </div>
 
+      <div class="panel">
+        <h2>How It Splits</h2>
         <label class="f">Spread</label>
         <input type="range" id="spread" min="0" max="30" value="10" class="slider">
         <div class="spread-labels"><span>Flat</span><span id="spreadName">Gentle</span><span>Top heavy</span></div>
@@ -147,12 +164,14 @@
           <input type="number" id="minEach" value="0" min="0" step="1">
           <button id="minClearBtn" title="Back to no minimum">None</button>
         </div>
-        <p class="weights-note" id="minNote">Everyone paid gets at least this much before the spread is applied. Set it to 1 or 2 to stop the bottom places drifting apart.</p>
+        <p class="weights-note">Everyone paid gets at least this much before the spread is applied. Set it to 1 or 2 to stop the bottom places drifting apart.</p>
 
-        <label class="f">Share per place</label>
-        <div id="weights"></div>
-        <button class="block" id="recalcBtn">Reset to slider</button>
-        <p class="weights-note">Edit any number to fine tune. They are proportions, so 5&nbsp;/&nbsp;3&nbsp;/&nbsp;2 splits the same as 50&nbsp;/&nbsp;30&nbsp;/&nbsp;20.</p>
+        <button class="block" id="fineTuneBtn">Fine tune each place</button>
+        <div id="fineTune" style="display:none;">
+          <div id="weights"></div>
+          <button class="block" id="recalcBtn">Reset to slider</button>
+          <p class="weights-note">Proportions, so 5&nbsp;/&nbsp;3&nbsp;/&nbsp;2 splits the same as 50&nbsp;/&nbsp;30&nbsp;/&nbsp;20.</p>
+        </div>
       </div>
     </div>
 
@@ -160,7 +179,7 @@
       <div class="panel">
         <h2>Payout</h2>
         <table>
-          <thead><tr><th>Place</th><th style="text-align:right;">Share</th><th style="text-align:right;" id="unitHead">Packs</th><th style="text-align:right;">Value</th></tr></thead>
+          <thead><tr><th>Place</th><th></th><th style="text-align:right;">Share</th><th style="text-align:right;" id="unitHead">Packs</th><th style="text-align:right;">Value</th></tr></thead>
           <tbody id="results"></tbody>
         </table>
         <div class="leftover" id="leftover"></div>
@@ -239,12 +258,20 @@ function rebuildFromCurve(){
   calc();
 }
 
-function poolValue(){
+function grossPool(){
   const override = parseFloat(el('poolOverride').value);
   if(!isNaN(override) && override >= 0) return override;
   const players = Math.max(0, parseInt(el('players').value) || 0);
   const per = Math.max(0, parseFloat(el('perHead').value) || 0);
   return players * per;
+}
+function heldBack(){
+  const pct = Math.min(90, Math.max(0, parseFloat(el('holdBack').value) || 0));
+  return grossPool() * (pct / 100);
+}
+// What actually pays out tonight, after anything set aside for the season.
+function poolValue(){
+  return Math.max(0, grossPool() - heldBack());
 }
 
 function calc(){
@@ -255,9 +282,14 @@ function calc(){
   const usingOverride = !isNaN(override) && override >= 0;
   const players = Math.max(0, parseInt(el('players').value) || 0);
   const per = Math.max(0, parseFloat(el('perHead').value) || 0);
-  el('poolSub').textContent = usingOverride
+  const held = heldBack();
+  const gross = grossPool();
+  const basis = usingOverride
     ? 'Using the pool you typed in.'
     : (players ? `${players} player${players===1?'':'s'} × ${money(per)} each` : 'Set a player count to begin.');
+  el('poolSub').textContent = held > 0
+    ? `${basis} ${money(gross)} total, ${money(held)} held for the season.`
+    : basis;
 
   const weights = currentWeights();
   const totalW = weights.reduce((a,b)=>a+b, 0);
@@ -266,7 +298,7 @@ function calc(){
   el('unitHead').textContent = mode === 'packs' ? 'Packs' : 'Credit';
 
   if(totalW <= 0 || pool <= 0){
-    body.innerHTML = '<tr><td colspan="4" style="color:var(--muted);">Set a pool and a structure to see a payout.</td></tr>';
+    body.innerHTML = '<tr><td colspan="5" style="color:var(--muted);">Set a pool and a structure to see a payout.</td></tr>';
     el('leftover').className = 'leftover';
     el('leftover').textContent = '';
     return;
@@ -274,7 +306,7 @@ function calc(){
 
   let emptyPlaces = 0;
   const unit = mode === 'packs'
-    ? Math.max(0.01, parseFloat(el('packCost').value) || 4)
+    ? Math.max(0.01, parseFloat(el('packCost').value) || 5)
     : Math.max(1, parseFloat(el('creditRound').value) || 1);
 
   // Work in whole units, then hand back whatever rounding left behind. Giving
@@ -313,12 +345,16 @@ function calc(){
     return { i, share: weights[i] / totalW, units, value };
   });
   const spent = rows.reduce((s,r)=> s + r.value, 0);
+  const topValue = Math.max(...rows.map(r=> r.value), 0);
 
   rows.forEach(r=>{
     const tr = document.createElement('tr');
     if(r.value <= 0) tr.className = 'empty';
+    // A bar makes the shape of the spread readable without comparing numbers.
+    const pct = topValue > 0 ? Math.round((r.value / topValue) * 100) : 0;
     tr.innerHTML =
       `<td class="place">${ordinal(r.i+1)}</td>` +
+      `<td class="bar"><span style="width:${pct}%"></span></td>` +
       `<td class="share">${(r.share*100).toFixed(1)}%</td>` +
       `<td class="val">${mode==='packs' ? r.units + (r.units===1?' pack':' packs') : money(r.value)}</td>` +
       `<td class="val">${money(r.value)}</td>`;
@@ -347,7 +383,7 @@ function copyText(){
   const lines = [`Prize pool: ${money(poolValue())}`, ''];
   document.querySelectorAll('#results tr').forEach(tr=>{
     const c = tr.querySelectorAll('td');
-    if(c.length === 4 && c[3].textContent !== '$0') lines.push(`${c[0].textContent}: ${c[2].textContent} (${c[3].textContent})`);
+    if(c.length === 5 && c[4].textContent !== '$0') lines.push(`${c[0].textContent}: ${c[3].textContent} (${c[4].textContent})`);
   });
   const lo = el('leftover').textContent;
   if(lo) lines.push('', lo);
@@ -365,7 +401,7 @@ document.querySelectorAll('#modeRow button').forEach(b=>{
     el('packCostWrap').style.display = mode === 'packs' ? '' : 'none';
     el('creditWrap').style.display = mode === 'credit' ? '' : 'none';
     el('minLabel').textContent = mode === 'packs' ? 'Minimum packs each' : 'Minimum steps each';
-    calc();
+    calc(); saveSettings();
   });
 });
 
@@ -373,15 +409,15 @@ document.querySelectorAll('#presetRow button').forEach(b=>{
   b.addEventListener('click', ()=>{
     el('spread').value = b.dataset.p;
     document.querySelectorAll('#presetRow button').forEach(x=> x.classList.toggle('on', x===b));
-    rebuildFromCurve();
+    rebuildFromCurve(); saveSettings();
   });
 });
 
 el('spread').addEventListener('input', ()=>{
   document.querySelectorAll('#presetRow button').forEach(x=> x.classList.remove('on'));
-  rebuildFromCurve();
+  rebuildFromCurve(); saveSettings();
 });
-el('places').addEventListener('input', rebuildFromCurve);
+el('places').addEventListener('input', ()=>{ rebuildFromCurve(); saveSettings(); });
 el('recalcBtn').addEventListener('click', rebuildFromCurve);
 el('allBtn').addEventListener('click', ()=>{
   const p = Math.max(1, parseInt(el('players').value) || 1);
@@ -389,11 +425,59 @@ el('allBtn').addEventListener('click', ()=>{
   rebuildFromCurve();
 });
 
-['players','perHead','poolOverride','packCost','creditRound','minEach']
-  .forEach(id=> el(id).addEventListener('input', calc));
-el('minClearBtn').addEventListener('click', ()=>{ el('minEach').value = 0; calc(); });
+function applyTopPercent(){
+  const pct = parseFloat(el('payTopPct').value);
+  const players = Math.max(0, parseInt(el('players').value) || 0);
+  if(isNaN(pct) || pct <= 0){ alert('Type a percentage first, for example 50.'); return; }
+  if(players <= 0){ alert('Set a player count first.'); return; }
+  const places = Math.max(1, Math.min(32, Math.ceil(players * (pct/100))));
+  el('places').value = places;
+  el('pctNote').textContent = `Top ${pct}% of ${players} players is ${places} place${places===1?'':'s'}.`;
+  rebuildFromCurve();
+  saveSettings();
+}
+
+// The same numbers get used every week, so remember them.
+const SAVE_KEYS = ['perHead','packCost','creditRound','places','spread','minEach','holdBack','payTopPct'];
+function saveSettings(){
+  try{
+    const data = { mode };
+    SAVE_KEYS.forEach(k=> data[k] = el(k).value);
+    localStorage.setItem('prizeCalc:settings', JSON.stringify(data));
+  }catch(e){ /* private browsing, not worth interrupting for */ }
+}
+function loadSettings(){
+  try{
+    const raw = localStorage.getItem('prizeCalc:settings');
+    if(!raw) return;
+    const data = JSON.parse(raw);
+    SAVE_KEYS.forEach(k=>{ if(data[k] !== undefined && data[k] !== '') el(k).value = data[k]; });
+    if(data.mode === 'packs' || data.mode === 'credit'){
+      mode = data.mode;
+      document.querySelectorAll('#modeRow button').forEach(b=> b.classList.toggle('on', b.dataset.mode === mode));
+      el('packCostWrap').style.display = mode === 'packs' ? '' : 'none';
+      el('creditWrap').style.display = mode === 'credit' ? '' : 'none';
+      el('minLabel').textContent = mode === 'packs' ? 'Minimum packs each' : 'Minimum steps each';
+    }
+    document.querySelectorAll('#presetRow button').forEach(b=> b.classList.toggle('on', b.dataset.p === String(el('spread').value)));
+  }catch(e){ /* nothing saved yet */ }
+}
+
+['players','perHead','poolOverride','packCost','creditRound','minEach','holdBack']
+  .forEach(id=> el(id).addEventListener('input', ()=>{ calc(); saveSettings(); }));
+el('minClearBtn').addEventListener('click', ()=>{ el('minEach').value = 0; calc(); saveSettings(); });
+el('holdClearBtn').addEventListener('click', ()=>{ el('holdBack').value = 0; calc(); saveSettings(); });
+el('applyPctBtn').addEventListener('click', applyTopPercent);
+el('fineTuneBtn').addEventListener('click', ()=>{
+  const box = el('fineTune');
+  const open = box.style.display !== 'none';
+  box.style.display = open ? 'none' : '';
+  el('fineTuneBtn').textContent = open ? 'Fine tune each place' : 'Hide fine tuning';
+});
+el('payTopPct').addEventListener('keydown', (e)=>{ if(e.key === 'Enter') applyTopPercent(); });
 el('copyBtn').addEventListener('click', copyText);
 
+loadSettings();
 rebuildFromCurve();
 </script>
 </body>

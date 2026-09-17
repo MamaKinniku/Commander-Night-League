@@ -154,6 +154,49 @@
   .chip .x{ color: var(--muted); font-size: 15px; line-height:1; padding: 0 1px; }
   .chip .x:hover{ color: var(--danger); }
 
+  .elim-row{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .kill-stepper{ display:flex; align-items:center; gap:5px; }
+  .kill-stepper button{ padding:2px 8px; font-size:15px; line-height:1.2; min-width:28px; }
+  .kill-count{ font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--muted); min-width:52px; text-align:center; }
+  .elim-flags{ display:flex; gap:5px; }
+  .flag-btn{ padding:3px 9px; font-size:12.5px; font-weight:600; border-radius:5px; opacity:.55; }
+  .flag-btn.on{ opacity:1; }
+  .flag-btn.on.win{ border-color:var(--gold); color:var(--gold); }
+  .flag-btn.on.last{ border-color:var(--good); color:var(--good); }
+  .elim-total{ margin-left:auto; font-family:'JetBrains Mono',monospace; font-size:14px; font-weight:700; color:var(--gold); }
+
+  .pod-status{ font-family:'JetBrains Mono',monospace; font-size:12px; padding:4px 9px; border-radius:5px;
+    margin-bottom:10px; background:var(--bg-soft); border:1px solid var(--panel-line); color:var(--muted); }
+  .pod-status.ok{ color:var(--good); border-color:var(--good); }
+  .pod-status.todo{ color:var(--gold); border-color:var(--panel-line); }
+  .pod-status.bad{ color:var(--danger); border-color:var(--danger); }
+  .pod.pod-done{ opacity:.82; }
+  .pod.pod-done:hover{ opacity:1; }
+
+  .round-bar{ display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;
+    margin-top:18px; padding:14px 16px; border-radius:var(--radius);
+    background:var(--panel); border:1px solid var(--panel-line); font-size:15px; color:var(--muted); }
+  .round-bar.ready{ border-color:var(--gold); color:var(--parchment); }
+  .round-bar button{ padding:10px 18px; }
+
+  /* The whole heading is the control, not just the glyph, so it reads as
+     clickable at a glance instead of hiding a target in the corner. */
+  .panel-toggle{ cursor:pointer; display:flex; align-items:center; gap:10px; user-select:none;
+    margin:-18px -18px 12px; padding:14px 16px;
+    background:var(--bg-soft); border-bottom:1px solid var(--panel-line);
+    border-radius:var(--radius) var(--radius) 0 0;
+    transition:background .15s, color .15s; }
+  .panel-toggle:hover{ background:var(--panel-line); color:var(--gold-light); }
+  .panel-caret{ font-size:13px; color:var(--gold); flex-shrink:0; width:16px; text-align:center;
+    transition:transform .15s; display:inline-block; }
+  .panel-toggle .panel-label{ flex:1; }
+  .panel-hint{ font-family:'Inter',sans-serif; font-size:12px; font-weight:500;
+    text-transform:none; letter-spacing:0; color:var(--muted); }
+  .panel.is-collapsed .panel-body{ display:none; }
+  .panel.is-collapsed .panel-toggle{ margin-bottom:-18px; border-bottom:none;
+    border-radius:var(--radius); }
+  .panel.is-collapsed .panel-caret{ transform:rotate(-90deg); }
+
   .pods-grid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(270px,1fr)); gap: 16px; }
   .pod{ background: var(--panel); border: 1px solid var(--panel-line); border-left: 4px solid var(--gold); border-radius: var(--radius); padding: 14px 14px 12px; position:relative; min-height: 130px; transition: box-shadow .15s, border-color .15s; }
   .pod.dragover{ box-shadow: 0 0 0 2px var(--gold) inset; }
@@ -388,6 +431,12 @@
           <button id="importSeasonBtn">⬆ Import backup</button>
         </div>
         <input type="file" id="importSeasonFile" accept="application/json,.json" style="display:none;">
+        <label class="field-label" style="margin-top:14px;">Spreadsheet</label>
+        <div class="btn-pair">
+          <button id="csvStandingsBtn" title="Season totals, one row per player">Standings CSV</button>
+          <button id="csvNightsBtn" title="One row per player per night">Night by night CSV</button>
+        </div>
+        <p class="hint">CSV opens straight in Excel or Sheets. The JSON backup is the one that restores a season, so keep using that for safekeeping.</p>
         <button class="block danger subtle" id="resetSeasonBtn" style="margin-top:12px;">Reset season</button>
         <p class="hint">Banking a night drops a <b>.json</b> in your Downloads folder. Keep those. Browser storage gets wiped by cache clears, moved folders and new PCs. The file survives all of it. Names match across nights ignoring caps and extra spaces.</p>
       </div>
@@ -420,6 +469,13 @@
       <input type="color" id="accentInput" value="#6fa3c9" style="flex:0 0 56px; padding:2px; height:36px;">
       <button class="tiny" id="clearAccentBtn">Use theme default</button>
     </div>
+    <label class="field-label">Scoring</label>
+    <select id="scoringModeSelect">
+      <option value="elimination">Eliminations (1 per kill, 1 last out, 2 win)</option>
+      <option value="placement">Placement (1st to 4th)</option>
+    </select>
+    <p class="hint" style="margin-top:6px;">Changing this only affects rounds you score from now on. Nights already banked keep the points they were banked with.</p>
+
     <label class="field-label">Season backup</label>
     <label class="row" style="align-items:flex-start; margin-top:0; cursor:pointer;">
       <input type="checkbox" id="autoBankFileCheck" checked style="width:auto; margin-top:3px;">
@@ -475,6 +531,19 @@ const OLD_FENRIS_FONT = 'data:font/ttf;base64,AAEAAAASAQAABAAgRkZUTX+TFMQADsGEAA
 })();
 const pointsMap = {1:4, 2:3, 3:2, 4:1};
 
+// Two ways to score a pod. Placement ranks people 1st to 4th. Elimination gives
+// a point per kill, a point to the last player out, and two to the winner.
+let scoringMode = 'elimination';
+const ELIM_POINTS = { kill: 1, lastOut: 1, win: 2 };
+
+function podPointsFor(pod, id){
+  if(scoringMode === 'placement') return pointsForRank(pod.ranks[id]);
+  let p = (pod.kills && pod.kills[id]) ? pod.kills[id] * ELIM_POINTS.kill : 0;
+  if(pod.winner === id) p += ELIM_POINTS.win;
+  if(pod.lastOut === id) p += ELIM_POINTS.lastOut;
+  return p;
+}
+
 const THEMES = {
   tavern:  {bg:'#15130f', bgSoft:'#1c1911', panel:'#211d15', panelLine:'#3a3325', parchment:'#ece4d0', muted:'#9a8f76', gold:'#cf9b3f', danger:'#b0503f', good:'#6f9d6f'},
   arcane:  {bg:'#100f1a', bgSoft:'#181729', panel:'#1d1b32', panelLine:'#332f57', parchment:'#e6e2f5', muted:'#8d87ad', gold:'#8a7fe0', danger:'#d1567a', good:'#6fbf9f'},
@@ -492,7 +561,8 @@ function createEmptyNightState(){
     rounds: [],            // locked round records: [{pods:[{members,ranks}], byes:[ids]}]
     adjustmentLog: [],      // [{id, playerId, delta, note, time}]
     selectedPlayerId: null,
-    nightLabel: '',          // e.g. "Week 3" — kept per workspace
+    nightLabel: '',          // e.g. "Week 3", kept per workspace
+    startTable: 1,           // League and Freeplay can number their tables differently
     bankedId: null,           // set once this night has been banked to the season
     timer: { minutes: 50, remaining: 50*60, running: false, endsAt: null },
   };
@@ -508,7 +578,6 @@ let appName = 'Commander Night';
 
 let idCounter = 1;
 let adjIdCounter = 1;
-let startingTableNumber = 1;
 let autoBankFile = true;
 let roster = []; // [{name, lastSeen}] — most recent first in the picker
 
@@ -555,7 +624,12 @@ async function storageSet(key, value){
   }
   try{ localStorage.setItem('commanderNight:' + key, value); return true; }catch(e){ return false; }
 }
-function defaultTableLabel(index){ return 'Table ' + (startingTableNumber + index); }
+// ws defaults to the board on screen, but a TV window showing the other board
+// needs that board's own numbering.
+function defaultTableLabel(index, ws){
+  const start = (ws || state).startTable || 1;
+  return 'Table ' + (start + index);
+}
 
 // Season stats match players across nights by a normalized key, so "Alex Smith",
 // "alex smith" and "Alex  Smith" all count as the same person.
@@ -727,73 +801,139 @@ function currentSeatingMode(){
   return el ? el.value : 'random';
 }
 
+// Who sits out should not depend on how well they are doing, so the bye is
+// picked separately from the seating method. Players who have sat out least
+// are preferred, and ties inside that group are broken at random.
+function byeCountFor(id){
+  let n = 0;
+  state.rounds.forEach(r=>{ if((r.byes||[]).includes(id)) n++; });
+  return n;
+}
+
+function chooseByes(ids, howMany){
+  if(howMany <= 0) return { seated: [...ids], byes: [] };
+  if(howMany >= ids.length) return { seated: [], byes: [...ids] };
+  const pool = shuffle(ids).sort((a,b)=> byeCountFor(a) - byeCountFor(b));
+  const byes = pool.slice(0, howMany);
+  const byeSet = new Set(byes);
+  return { seated: ids.filter(id=> !byeSet.has(id)), byes };
+}
+
 async function randomizeAll(){
   const allIds = activePlayerIds();
   if(allIds.length === 0) return;
+
+  if(state.pods.some(podHasResults) &&
+     !confirm('Some results are already entered on these tables.\n\nSeating fresh tables clears them. Continue?')){
+    return;
+  }
+
   const mode = currentSeatingMode();
   const sizes = await computeTableSizes(allIds.length);
   const totalSeats = sizes.reduce((a,b)=>a+b, 0);
 
-  if(mode === 'random'){
-    // Try many shuffles and keep the one with the fewest repeat pairings.
-    let best = null, bestScore = Infinity;
-    const attempts = allIds.length > 40 ? 60 : 250;
-    for(let a=0;a<attempts;a++){
-      const shuffled = shuffle(allIds);
-      const seatedIds = shuffled.slice(0, totalSeats);
-      const leftoverIds = shuffled.slice(totalSeats);
-      const podArrays = splitIntoSizes(seatedIds, sizes);
-      const s = scorePodArrays(podArrays);
-      if(s < bestScore){ bestScore = s; best = { podArrays, leftoverIds }; }
-      if(bestScore === 0) break;
-    }
-    state.pods = best.podArrays.map(arr=>({members: arr, ranks: {}, label: ''}));
-    state.unassigned = best.leftoverIds;
-  } else {
-    // Score and balanced modes need their ordering preserved, so we only
-    // re-roll within the ordering to break ties, not across the whole field.
-    let best = null, bestScore = Infinity;
-    for(let a=0;a<40;a++){
-      const ordered = orderPlayersForMode(allIds, mode);
-      const seatedIds = ordered.slice(0, totalSeats);
-      const leftoverIds = ordered.slice(totalSeats);
-      const podArrays = splitIntoSizes(seatedIds, sizes);
-      const s = scorePodArrays(podArrays);
-      if(s < bestScore){ bestScore = s; best = { podArrays, leftoverIds }; }
-      if(bestScore === 0) break;
-    }
-    state.pods = best.podArrays.map(arr=>({members: arr, ranks: {}, label: ''}));
-    state.unassigned = best.leftoverIds;
+  const { seated, byes } = chooseByes(allIds, allIds.length - totalSeats);
+
+  let best = null, bestScore = Infinity;
+  const attempts = mode === 'random' ? (seated.length > 40 ? 60 : 250) : 40;
+  for(let a=0;a<attempts;a++){
+    const ordered = mode === 'random' ? shuffle(seated) : orderPlayersForMode(seated, mode);
+    const podArrays = splitIntoSizes(ordered, sizes);
+    const s = scorePodArrays(podArrays);
+    if(s < bestScore){ bestScore = s; best = podArrays; }
+    if(bestScore === 0) break;
   }
+
+  state.pods = best.map(arr=>({members: arr, ranks: {}, kills: {}, winner: null, lastOut: null, label: ''}));
+  state.unassigned = byes;
   state.selectedPlayerId = null;
   render();
 }
 
+function podHasResults(pod){
+  if(pod.winner || pod.lastOut) return true;
+  if(pod.kills && Object.values(pod.kills).some(v=> v > 0)) return true;
+  if(pod.ranks && Object.keys(pod.ranks).length) return true;
+  return false;
+}
+
 async function repairPods(){
-  const flat = [];
-  state.pods.forEach(pod => flat.push(...pod.members));
-  flat.push(...state.unassigned);
-  if(flat.length === 0) return;
-  const sizes = await computeTableSizes(flat.length);
+  const total = state.pods.reduce((n,p)=> n + p.members.length, 0) + state.unassigned.length;
+  if(total === 0) return;
+
+  const sizes = await computeTableSizes(total);
   const totalSeats = sizes.reduce((a,b)=>a+b, 0);
-  const seatedIds = flat.slice(0, totalSeats);
-  const leftoverIds = flat.slice(totalSeats);
-  state.pods = splitIntoSizes(seatedIds, sizes).map(arr=>({members: arr, ranks: {}, label: ''}));
-  state.unassigned = leftoverIds;
+
+  // Anyone already sitting somewhere sensible stays put. Only the players on
+  // over or undersized tables get moved, so a repair mid-round disturbs as
+  // little as possible.
+  const pool = [...state.unassigned];
+  let pods = state.pods.filter(p=> p.members.length > 0).map(p=>({...p, members:[...p.members]}));
+
+  // Drop surplus tables, biggest kept first so fewer people move.
+  pods.sort((a,b)=> b.members.length - a.members.length);
+  while(pods.length > sizes.length){
+    const gone = pods.pop();
+    pool.push(...gone.members);
+  }
+  while(pods.length < sizes.length){
+    pods.push({members: [], ranks: {}, kills: {}, winner: null, lastOut: null, label: ''});
+  }
+
+  // Trim anything oversized, then top up anything short.
+  pods.forEach((pod, i)=>{
+    const target = sizes[i];
+    while(pod.members.length > target){
+      const id = pod.members.pop();
+      clearPodResultsFor(pod, id);
+      pool.push(id);
+    }
+  });
+  pods.forEach((pod, i)=>{
+    const target = sizes[i];
+    while(pod.members.length < target && pool.length){
+      pod.members.push(pool.shift());
+    }
+  });
+
+  const leftover = pool;
+  const byes = leftover.length > (total - totalSeats)
+    ? leftover.slice(0, total - totalSeats)
+    : leftover;
+  // Anyone still floating beyond the expected bye count goes back to the pool.
+  const extra = leftover.filter(id=> !byes.includes(id));
+  if(extra.length){
+    outer: for(const id of extra){
+      for(let i=0;i<pods.length;i++){
+        if(pods[i].members.length < 4){ pods[i].members.push(id); continue outer; }
+      }
+      byes.push(id);
+    }
+  }
+
+  const before = JSON.stringify(state.pods.map(p=> [...p.members].sort())) + JSON.stringify([...state.unassigned].sort());
+  const after = JSON.stringify(pods.map(p=> [...p.members].sort())) + JSON.stringify([...byes].sort());
+  if(before === after){
+    alert('Tables are already even. Nothing to repair.');
+    return;
+  }
+
+  state.pods = pods;
+  state.unassigned = byes;
   state.selectedPlayerId = null;
   render();
 }
 
 function renumberTables(){
   const val = parseInt(document.getElementById('startingTableInput').value);
-  startingTableNumber = Math.max(1, isNaN(val) ? 1 : val);
-  document.getElementById('startingTableInput').value = startingTableNumber;
+  state.startTable = Math.max(1, isNaN(val) ? 1 : val);
+  document.getElementById('startingTableInput').value = state.startTable;
   state.pods.forEach(p=>{ p.label = ''; }); // clear overrides so numbering applies
   render();
 }
 
 function addEmptyPod(){
-  state.pods.push({members: [], ranks: {}, label: ''});
+  state.pods.push({members: [], ranks: {}, kills: {}, winner: null, lastOut: null, label: ''});
   render();
 }
 
@@ -825,20 +965,50 @@ function unplacedPlayers(){
   return missing;
 }
 
+// In elimination mode nothing is strictly required. A timed-out game has no
+// winner, and a player who decks themselves is nobody's kill. We only flag
+// what is probably a data entry slip.
+function elimWarnings(){
+  const notes = [];
+  state.pods.forEach((pod,i)=>{
+    if(pod.members.length === 0) return;
+    const label = pod.label || defaultTableLabel(i);
+    const used = podKillsUsed(pod);
+    const maxKills = pod.members.length - 1;
+    if(used > maxKills) notes.push(`${label}: ${used} kills recorded but only ${maxKills} players can be eliminated.`);
+    if(!pod.winner) notes.push(`${label}: nobody marked as the winner.`);
+  });
+  return notes;
+}
+
 function finishRound(){
   const hasAnyone = state.pods.some(p=>p.members.length>0) || state.unassigned.length>0;
   if(!hasAnyone){ alert('Nothing to score yet. Seat some players first.'); return; }
-  const missing = unplacedPlayers();
-  if(missing.length){
-    alert('Set a placement for everyone seated before finishing the round (use "No placement (0pt)" for anyone who didn\'t rank).\n\nStill missing: ' + missing.join(', '));
-    return;
+
+  if(scoringMode === 'placement'){
+    const missing = unplacedPlayers();
+    if(missing.length){
+      alert('Set a placement for everyone seated before finishing the round.\n\nStill missing: ' + missing.join(', '));
+      return;
+    }
   }
+
+  if(state.bankedId && !confirm(
+    'This night is already banked to the season.\n\n' +
+    'Scoring another round changes the board but not the banked figures, so the two will disagree. ' +
+    'Unbank it first from Season Stats if you want this round counted.\n\nCarry on anyway?'
+  )) return;
+
   const tableCount = state.pods.filter(p=>p.members.length>0).length;
   const byeCount = state.unassigned.length;
-  const summary = `Finish this round and lock in scores?\n\n${tableCount} table(s) scored${byeCount ? `, ${byeCount} on a bye` : ''}. This can be undone with "Revert last round" if needed.`;
+  let summary = `Finish this round and lock in scores?\n\n${tableCount} table(s) scored${byeCount ? `, ${byeCount} on a bye` : ''}. This can be undone with "Revert last round" if needed.`;
+  if(scoringMode === 'elimination'){
+    const warns = elimWarnings();
+    if(warns.length) summary = 'Check these first:\n\n' + warns.join('\n') + '\n\n' + summary;
+  }
   if(!confirm(summary)) return;
   const roundRecord = {
-    pods: state.pods.filter(p=>p.members.length>0).map(p=>({members:[...p.members], ranks:{...p.ranks}, label: p.label||''})),
+    pods: state.pods.filter(p=>p.members.length>0).map(p=>({members:[...p.members], ranks:{...p.ranks}, kills:{...(p.kills||{})}, winner:p.winner||null, lastOut:p.lastOut||null, label: p.label||''})),
     byes: [...state.unassigned],
   };
   state.rounds.push(roundRecord);
@@ -850,6 +1020,15 @@ function finishRound(){
 }
 
 function undoLastRound(){
+  if(!state.rounds.length) return;
+
+  // Banking snapshots the standings, so changing a round afterwards would leave
+  // the season holding numbers the board no longer agrees with.
+  if(state.bankedId){
+    alert('This night has already been banked to the season.\n\nUnbank it first from the Season Stats panel, then revert the round. That keeps the season and the board in step.');
+    return;
+  }
+
   const last = state.rounds.pop();
   if(!last){ return; }
   last.pods.forEach(pod=>{
@@ -862,7 +1041,7 @@ function undoLastRound(){
     }
   });
   // put the tables back on the board so the round can be fixed and re-finished
-  state.pods = last.pods.map(p=>({members:[...p.members], ranks:{...p.ranks}, label: p.label||''}));
+  state.pods = last.pods.map(p=>({members:[...p.members], ranks:{...p.ranks}, kills:{...(p.kills||{})}, winner:p.winner||null, lastOut:p.lastOut||null, label: p.label||''}));
   state.unassigned = [...last.byes];
   state.selectedPlayerId = null;
   render();
@@ -878,6 +1057,9 @@ function switchWorkspace(target){
   document.getElementById('roundLengthInput').value = state.timer.minutes;
   document.getElementById('nightLabelInput').value = state.nightLabel || '';
   document.getElementById('nightLogPanel').style.display = 'none';
+  document.getElementById('startingTableInput').value = state.startTable || 1;
+  document.getElementById('playerFilter').value = '';
+  expandedHistoryRounds = new Set();
   const bankHint = document.getElementById('bankHintText');
   if(bankHint){
     bankHint.innerHTML = target === 'league'
@@ -955,9 +1137,19 @@ function addSinglePlayer(name){
   render();
 }
 
+// Taking a player off a table has to clear everything recorded against them
+// there, not just their placement. Otherwise they stay marked as the winner of
+// a pod they are no longer sitting at.
+function clearPodResultsFor(pod, id){
+  delete pod.ranks[id];
+  if(pod.kills) delete pod.kills[id];
+  if(pod.winner === id) pod.winner = null;
+  if(pod.lastOut === id) pod.lastOut = null;
+}
+
 function dropPlayer(id){
   state.unassigned = state.unassigned.filter(x=>x!==id);
-  state.pods.forEach(pod=>{ pod.members = pod.members.filter(x=>x!==id); delete pod.ranks[id]; });
+  state.pods.forEach(pod=>{ pod.members = pod.members.filter(x=>x!==id); clearPodResultsFor(pod, id); });
   const p = state.players.find(p=>p.id===id);
   if(p) p.dropped = true;
   if(state.selectedPlayerId===id) state.selectedPlayerId = null;
@@ -974,14 +1166,14 @@ function deletePlayerPermanently(id){
   if(!confirm('Permanently delete this player and remove them from standings?')) return;
   state.players = state.players.filter(p=>p.id!==id);
   state.unassigned = state.unassigned.filter(x=>x!==id);
-  state.pods.forEach(pod=>{ pod.members = pod.members.filter(x=>x!==id); delete pod.ranks[id]; });
+  state.pods.forEach(pod=>{ pod.members = pod.members.filter(x=>x!==id); clearPodResultsFor(pod, id); });
   state.adjustmentLog = state.adjustmentLog.filter(e=>e.playerId!==id);
   render();
 }
 
 function movePlayerTo(id, destPodIndex){
   state.unassigned = state.unassigned.filter(x=>x!==id);
-  state.pods.forEach(pod=>{ pod.members = pod.members.filter(x=>x!==id); delete pod.ranks[id]; });
+  state.pods.forEach(pod=>{ pod.members = pod.members.filter(x=>x!==id); clearPodResultsFor(pod, id); });
   if(destPodIndex === -1){
     state.unassigned.push(id);
   } else {
@@ -1006,6 +1198,87 @@ function assignRankWithSwap(pod, id, newRank){
 // placements that are already taken, so entry stays clean. Once everything is
 // placed (which is always the case in round history) we show them all again and
 // swap on selection — otherwise there'd be no way to correct a mistake.
+// Kills, winner and last-out are entered from whatever the table reports. The
+// app deliberately does not police them: a board wipe can be two kills, a
+// player who decks themselves is nobody's kill, and a timed-out game has no
+// winner at all.
+function podKillsUsed(pod){
+  return pod.members.reduce((s,id)=> s + ((pod.kills && pod.kills[id]) || 0), 0);
+}
+
+function buildElimControls(pod, id, onChange){
+  const wrap = document.createElement('div');
+  wrap.className = 'elim-row';
+
+  const kills = document.createElement('div');
+  kills.className = 'kill-stepper';
+  const minus = document.createElement('button');
+  minus.type = 'button'; minus.className = 'tiny'; minus.textContent = '−'; minus.title = 'One fewer kill';
+  const count = document.createElement('span');
+  count.className = 'kill-count';
+  const n = (pod.kills && pod.kills[id]) || 0;
+  count.textContent = n + (n === 1 ? ' kill' : ' kills');
+  const plus = document.createElement('button');
+  plus.type = 'button'; plus.className = 'tiny'; plus.textContent = '+'; plus.title = 'One more kill';
+  minus.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    pod.kills = pod.kills || {};
+    pod.kills[id] = Math.max(0, (pod.kills[id] || 0) - 1);
+    onChange();
+  });
+  plus.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    pod.kills = pod.kills || {};
+    pod.kills[id] = Math.min(pod.members.length - 1, (pod.kills[id] || 0) + 1);
+    onChange();
+  });
+  kills.appendChild(minus); kills.appendChild(count); kills.appendChild(plus);
+  wrap.appendChild(kills);
+
+  const flags = document.createElement('div');
+  flags.className = 'elim-flags';
+
+  const win = document.createElement('button');
+  win.type = 'button';
+  win.className = 'flag-btn' + (pod.winner === id ? ' on win' : '');
+  win.textContent = 'Won';
+  win.title = 'Won the pod, worth ' + ELIM_POINTS.win;
+  win.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    pod.winner = pod.winner === id ? null : id;
+    if(pod.winner === id && pod.lastOut === id) pod.lastOut = null;
+    onChange();
+  });
+  flags.appendChild(win);
+
+  const last = document.createElement('button');
+  last.type = 'button';
+  last.className = 'flag-btn' + (pod.lastOut === id ? ' on last' : '');
+  last.textContent = 'Last out';
+  last.title = 'Last player eliminated, worth ' + ELIM_POINTS.lastOut;
+  last.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    pod.lastOut = pod.lastOut === id ? null : id;
+    if(pod.lastOut === id && pod.winner === id) pod.winner = null;
+    onChange();
+  });
+  flags.appendChild(last);
+  wrap.appendChild(flags);
+
+  const total = document.createElement('span');
+  total.className = 'elim-total';
+  total.textContent = podPointsFor(pod, id) + 'pt';
+  wrap.appendChild(total);
+
+  return wrap;
+}
+
+function buildScoreControls(pod, id, onChange){
+  return scoringMode === 'placement'
+    ? buildPlacementSelect(pod, id, onChange)
+    : buildElimControls(pod, id, onChange);
+}
+
 function buildPlacementSelect(pod, id, onPicked){
   const select = document.createElement('select');
   const currentRank = pod.ranks[id];
@@ -1065,13 +1338,13 @@ function computeStandingsFor(ws){
       pod.members.forEach(id=>{
         if(!map[id]) map[id] = {points:0, rounds:0};
         map[id].rounds += 1;
-        map[id].points += 1 + pointsForRank(pod.ranks[id]);
+        map[id].points += podPointsFor(pod, id);
       });
     });
+    // Byes score nothing. Attendance is tracked in the rounds count, not points.
     round.byes.forEach(id=>{
       if(!map[id]) map[id] = {points:0, rounds:0};
       map[id].rounds += 1;
-      map[id].points += 1;
     });
   });
   const adjPlayerIds = new Set(ws.adjustmentLog.map(e=>e.playerId));
@@ -1202,7 +1475,9 @@ function tvShellHTML(winId){
   .pod.bye{border-left-color:${t.muted};opacity:.85;}
   .pod.bye h3{color:${t.muted};}
   .muted{color:${t.muted};font-size:16px;}
-  .ws-tabs{display:flex;justify-content:center;gap:14px;margin:0 0 28px;}
+  .ws-tabs{display:flex;justify-content:center;gap:14px;margin:0 0 22px;}
+  .round-label{font-family:'Old Fenris','Cinzel',serif;font-size:30px;text-align:center;
+    color:${t.muted};letter-spacing:.06em;margin-bottom:2px;}
   .ws-tab{font-family:'Old Fenris','Cinzel',serif;font-size:18px;letter-spacing:.05em;text-transform:uppercase;background:transparent;border:2px solid ${t.panelLine};color:${t.muted};padding:9px 26px;border-radius:10px;cursor:pointer;}
   .ws-tab.active{color:${t.gold};border-color:${t.gold};}
 </style></head><body>
@@ -1211,6 +1486,7 @@ function tvShellHTML(winId){
   <button class="ws-tab" id="tvTabLeague" onclick="window.opener && window.opener.setTVWindowWorkspace('${winId}','league')">🏆 League</button>
   <button class="ws-tab" id="tvTabFreeplay" onclick="window.opener && window.opener.setTVWindowWorkspace('${winId}','freeplay')">🎲 Freeplay</button>
 </div>
+<div id="tvRound" class="round-label">Round 1</div>
 <div id="tvTimer" class="timer">--:--</div>
 <div class="tv-layout">
   <div class="tv-panel"><h2>Standings</h2><div id="tvStandings"></div></div>
@@ -1272,6 +1548,16 @@ function renderOneTVWindow(entry){
   if(tabLeague) tabLeague.classList.toggle('active', entry.workspace === 'league');
   if(tabFreeplay) tabFreeplay.classList.toggle('active', entry.workspace === 'freeplay');
 
+  const roundEl = doc.getElementById('tvRound');
+  if(roundEl){
+    // Rounds already finished are locked in, so the live one is the next number.
+    const done = ws.rounds.length;
+    const seated = ws.pods.some(p=> p.members.length > 0);
+    roundEl.textContent = seated
+      ? 'Round ' + (done + 1)
+      : (done ? done + ' round' + (done===1?'':'s') + ' played' : 'Not started');
+  }
+
   const timerEl = doc.getElementById('tvTimer');
   if(timerEl){
     const secs = timerRemaining(entry.workspace);
@@ -1301,11 +1587,11 @@ function renderOneTVWindow(entry){
         const players = pod.members.length
           ? pod.members.map(id=>`<div class="player">${playerNameIn(ws, id)}</div>`).join('')
           : '<div class="player muted">Empty</div>';
-        return `<div class="pod"><h3>${defaultTableLabel(i)}</h3>${players}</div>`;
+        return `<div class="pod"><h3>${defaultTableLabel(i, ws)}</h3>${players}</div>`;
       }).join('');
       if(ws.unassigned.length){
         const byes = ws.unassigned.map(id=>`<div class="player">${playerNameIn(ws, id)}</div>`).join('');
-        html += `<div class="pod bye"><h3>Bye</h3>${byes}<div class="muted" style="margin-top:8px;">Sitting out. Still gets the attendance point</div></div>`;
+        html += `<div class="pod bye"><h3>Bye</h3>${byes}<div class="muted" style="margin-top:8px;">Sitting out this round</div></div>`;
       }
       podsEl.innerHTML = html;
     }
@@ -1404,15 +1690,16 @@ function renderStoreStatsWindow(){
         '<th>#</th><th>Player</th>' +
         '<th title="Nights they showed up to">Nights</th>' +
         '<th title="Total rounds played across the season">Rounds</th>' +
-        '<th title="Number of tables they won outright">Wins</th>' +
+        '<th title="Pods they won outright">Wins</th>' +
+        '<th title="Total eliminations across the season">Kills</th>' +
         '<th title="Their highest score on a single night">Best night</th>' +
         '<th title="Season points, all nights added up">Points</th>' +
         '</tr></thead><tbody>';
       standings.forEach((s,i)=>{
-        html += `<tr><td>${i+1}</td><td>${s.name}</td><td>${s.nights}</td><td>${s.rounds}</td><td>${s.wins}</td><td>${s.best}</td><td class="pts">${s.points}</td></tr>`;
+        html += `<tr><td>${i+1}</td><td>${s.name}</td><td>${s.nights}</td><td>${s.rounds}</td><td>${s.wins}</td><td>${s.kills}</td><td>${s.best}</td><td class="pts">${s.points}</td></tr>`;
       });
       html += '</tbody></table>';
-      html += '<p class="legend">Sorted by points. Ties break on table wins, then nights attended.</p>';
+      html += '<p class="legend">Sorted by points. Ties break on pod wins, then kills, then nights attended.</p>';
       lbEl.innerHTML = html;
     }
   }
@@ -1447,16 +1734,28 @@ function buildLogText(){
     lines.push(`Round ${ri+1}`);
     round.pods.forEach((pod, pi)=>{
       lines.push(`  ${pod.label ? pod.label : defaultTableLabel(pi)}`);
-      const ranked = [...pod.members].sort((a,b)=>{
-        const ra = pod.ranks[a] === undefined ? 99 : (pod.ranks[a] === 0 ? 50 : pod.ranks[a]);
-        const rb = pod.ranks[b] === undefined ? 99 : (pod.ranks[b] === 0 ? 50 : pod.ranks[b]);
-        return ra - rb;
-      });
-      ranked.forEach(id=>{
-        const r = pod.ranks[id];
-        const label = (r === undefined) ? 'no placement recorded' : (r === 0 ? 'No placement (0 pt)' : `${ordinal(r)} place (${pointsForRank(r)} pt)`);
-        lines.push(`    - ${playerName(id)}: ${label}`);
-      });
+      if(scoringMode === 'elimination'){
+        const ranked = [...pod.members].sort((a,b)=> podPointsFor(pod,b) - podPointsFor(pod,a));
+        ranked.forEach(id=>{
+          const k = (pod.kills && pod.kills[id]) || 0;
+          const tags = [];
+          if(pod.winner === id) tags.push('won');
+          if(pod.lastOut === id) tags.push('last out');
+          if(k) tags.push(k + (k===1?' kill':' kills'));
+          lines.push(`    - ${playerName(id)}: ${podPointsFor(pod,id)} pt${tags.length ? ' (' + tags.join(', ') + ')' : ''}`);
+        });
+      } else {
+        const ranked = [...pod.members].sort((a,b)=>{
+          const ra = pod.ranks[a] === undefined ? 99 : (pod.ranks[a] === 0 ? 50 : pod.ranks[a]);
+          const rb = pod.ranks[b] === undefined ? 99 : (pod.ranks[b] === 0 ? 50 : pod.ranks[b]);
+          return ra - rb;
+        });
+        ranked.forEach(id=>{
+          const r = pod.ranks[id];
+          const label = (r === undefined) ? 'no placement recorded' : (r === 0 ? 'No placement (0 pt)' : `${ordinal(r)} place (${pointsForRank(r)} pt)`);
+          lines.push(`    - ${playerName(id)}: ${label}`);
+        });
+      }
     });
     if(round.byes.length){
       lines.push(`  Bye: ${round.byes.map(playerName).join(', ')}`);
@@ -1596,31 +1895,39 @@ function computeSeasonStandings(){
     night.standings.forEach(s=>{
       const key = nameKey(s.name);
       if(!key) return;
-      if(!map[key]) map[key] = {name: s.name, points:0, rounds:0, nights:0, best:0, wins:0};
+      if(!map[key]) map[key] = {name: s.name, points:0, rounds:0, nights:0, best:0, wins:0, kills:0};
       map[key].points += s.points;
       map[key].rounds += s.rounds;
       map[key].nights += 1;
       map[key].best = Math.max(map[key].best, s.points);
     });
 
-    // Count table wins from the stored snapshot, where we still have placements.
+    // Wins and kills come from the stored snapshot. Placement-scored nights
+    // record the winner as 1st place; elimination-scored nights record it on
+    // the pod itself, so both are checked.
     const snap = night.snapshot;
     if(snap && Array.isArray(snap.rounds) && Array.isArray(snap.players)){
       const nameById = {};
       snap.players.forEach(p=>{ nameById[p.id] = p.name; });
+      const bump = (pid, field, by)=>{
+        const key = nameKey(nameById[pid]);
+        if(key && map[key]) map[key][field] += by;
+      };
       snap.rounds.forEach(rd=>{
         (rd.pods||[]).forEach(pod=>{
+          if(pod.winner) bump(pod.winner, 'wins', 1);
           Object.keys(pod.ranks||{}).forEach(pid=>{
-            if(pod.ranks[pid] !== 1) return;
-            const key = nameKey(nameById[pid]);
-            if(key && map[key]) map[key].wins += 1;
+            if(pod.ranks[pid] === 1 && !pod.winner) bump(pid, 'wins', 1);
+          });
+          Object.keys(pod.kills||{}).forEach(pid=>{
+            bump(pid, 'kills', pod.kills[pid] || 0);
           });
         });
       });
     }
   });
   return Object.values(map).sort((a,b)=>
-    b.points - a.points || b.wins - a.wins || b.nights - a.nights || a.name.localeCompare(b.name)
+    b.points - a.points || b.wins - a.wins || b.kills - a.kills || b.nights - a.nights || a.name.localeCompare(b.name)
   );
 }
 function renderSeasonStats(){
@@ -1724,6 +2031,48 @@ function autoWriteBankFile(night){
     bankedNight: { id: night.id, label: night.label, date: night.date, totalRounds: night.totalRounds, standings: night.standings },
     seasonArchive,
   }, `commander-season-${stamp}${labelPart}.json`);
+}
+
+// Names can contain commas, quotes or accents, so every field is quoted and
+// the file gets a BOM. Without it Excel mangles anything non-ASCII.
+function csvCell(v){
+  const s = String(v == null ? '' : v);
+  return '"' + s.replace(/"/g, '""') + '"';
+}
+function saveCsv(rows, filename){
+  const body = rows.map(r=> r.map(csvCell).join(',')).join('\r\n');
+  const blob = new Blob(['\ufeff' + body], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function stamp(){
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function exportStandingsCsv(){
+  const standings = computeSeasonStandings();
+  if(standings.length === 0){ alert('Nothing to export yet. Bank a night first.'); return; }
+  const rows = [['Rank','Player','Nights','Rounds','Wins','Kills','Best night','Points']];
+  standings.forEach((s,i)=> rows.push([i+1, s.name, s.nights, s.rounds, s.wins, s.kills, s.best, s.points]));
+  saveCsv(rows, `season-standings-${stamp()}.csv`);
+}
+
+function exportNightsCsv(){
+  if(seasonArchive.length === 0){ alert('Nothing to export yet. Bank a night first.'); return; }
+  const rows = [['Night','Date','Player','Rounds','Points']];
+  seasonArchive.forEach(night=>{
+    const d = new Date(night.date);
+    const label = night.label || d.toLocaleDateString();
+    const iso = d.toISOString().slice(0,10);
+    [...night.standings]
+      .sort((a,b)=> b.points - a.points || a.name.localeCompare(b.name))
+      .forEach(s=> rows.push([label, iso, s.name, s.rounds, s.points]));
+  });
+  saveCsv(rows, `season-by-night-${stamp()}.csv`);
 }
 
 function exportSeasonBackup(){
@@ -1842,7 +2191,8 @@ async function saveSettings(){
   applyTheme(theme, accent);
   applyAppName(name);
   const note = document.getElementById('settingsSavedNote');
-  const ok = await storageSet('settings', JSON.stringify({theme, accent, appName, autoBankFile}));
+  scoringMode = document.getElementById('scoringModeSelect').value;
+  const ok = await storageSet('settings', JSON.stringify({theme, accent, appName, autoBankFile, scoringMode}));
   note.textContent = ok ? 'Saved. This loads automatically next time you open the app.' : 'Applied for this session, but the setting could not be saved.';
 }
 
@@ -1855,6 +2205,10 @@ async function loadSettings(){
       if(parsed.accent) document.getElementById('accentInput').value = parsed.accent;
       if(parsed.appName) document.getElementById('appNameInput').value = parsed.appName;
       if(typeof parsed.autoBankFile === 'boolean') autoBankFile = parsed.autoBankFile;
+      if(parsed.scoringMode === 'placement' || parsed.scoringMode === 'elimination'){
+        scoringMode = parsed.scoringMode;
+        document.getElementById('scoringModeSelect').value = scoringMode;
+      }
       document.getElementById('autoBankFileCheck').checked = autoBankFile;
       applyTheme(parsed.theme || 'slate', parsed.accent);
       applyAppName(parsed.appName || 'Commander Night');
@@ -1877,6 +2231,7 @@ function serializeWorkspace(ws){
     rounds: ws.rounds,
     adjustmentLog: ws.adjustmentLog,
     nightLabel: ws.nightLabel || '',
+    startTable: ws.startTable || 1,
     bankedId: ws.bankedId || null,
     timer: { minutes: ws.timer.minutes, remaining: ws.timer.remaining, running: ws.timer.running, endsAt: ws.timer.endsAt || null },
   };
@@ -1885,7 +2240,6 @@ async function saveLiveNight(){
   try{
     const payload = {
       currentWorkspace,
-      startingTableNumber,
       workspaces: { league: serializeWorkspace(workspaces.league), freeplay: serializeWorkspace(workspaces.freeplay) },
     };
     await storageSet('liveNight', JSON.stringify(payload));
@@ -1923,6 +2277,7 @@ async function loadLiveNight(){
         target.rounds = w.rounds || [];
         target.adjustmentLog = w.adjustmentLog || [];
         target.nightLabel = w.nightLabel || '';
+        target.startTable = w.startTable || 1;
         target.bankedId = w.bankedId || null;
         target.timer = {
           minutes: (w.timer && w.timer.minutes) || 50,
@@ -1937,14 +2292,11 @@ async function loadLiveNight(){
       currentWorkspace = parsed.currentWorkspace;
       state = workspaces[currentWorkspace];
     }
-    if(typeof parsed.startingTableNumber === 'number' && parsed.startingTableNumber >= 1){
-      startingTableNumber = parsed.startingTableNumber;
-    }
     recalcCountersFromWorkspaces();
     document.getElementById('wsLeagueBtn').classList.toggle('active', currentWorkspace === 'league');
     document.getElementById('wsFreeplayBtn').classList.toggle('active', currentWorkspace === 'freeplay');
     document.getElementById('roundLengthInput').value = state.timer.minutes;
-    document.getElementById('startingTableInput').value = startingTableNumber;
+    document.getElementById('startingTableInput').value = state.startTable || 1;
     document.getElementById('nightLabelInput').value = state.nightLabel || '';
     resumeRunningTimers();
     updateTimerDisplay();
@@ -2002,6 +2354,25 @@ function render(){
     state.pods.forEach((pod, i)=> grid.appendChild(makePodCard(pod, i)));
     if(state.unassigned.length) grid.appendChild(makeByeCard());
     podsArea.appendChild(grid);
+
+    // Results get entered here, so the button to close the round lives here too
+    // rather than back up the left column.
+    const seatedPods = state.pods.filter(p=> p.members.length > 0);
+    if(seatedPods.length){
+      const doneCount = seatedPods.filter(p=> podStatus(p).done).length;
+      const bar = document.createElement('div');
+      bar.className = 'round-bar' + (doneCount === seatedPods.length ? ' ready' : '');
+      const label = document.createElement('span');
+      label.textContent = doneCount === seatedPods.length
+        ? `All ${seatedPods.length} table${seatedPods.length===1?'':'s'} recorded`
+        : `${doneCount} of ${seatedPods.length} tables recorded`;
+      const go = document.createElement('button');
+      go.className = 'primary';
+      go.textContent = 'Finish round & score';
+      go.addEventListener('click', finishRound);
+      bar.appendChild(label); bar.appendChild(go);
+      podsArea.appendChild(bar);
+    }
   }
 
   const droppedPanel = document.getElementById('droppedPanel');
@@ -2069,6 +2440,7 @@ function render(){
   document.getElementById('undoRoundBtn').disabled = state.rounds.length === 0;
 
   renderTVWindow();
+  applyCollapsible();
   scheduleLiveSave();
 }
 
@@ -2235,6 +2607,68 @@ function removeCheckedFromRoster(){
   renderRosterList();
 }
 
+// The right column is long. Panels you only need between rounds or at the end
+// of the night fold away, and stay how you left them.
+const COLLAPSIBLE = ["Tonight's Standings","Point Adjustment","Round History","Season Stats","End of Night","Dropped"];
+let collapsedPanels = new Set();
+
+function applyCollapsible(){
+  document.querySelectorAll('.panel').forEach(panel=>{
+    const h2 = panel.querySelector('h2');
+    if(!h2) return;
+    // Once wrapped, the heading contains the caret and the show/hide word, so
+    // the original title is kept on the element rather than re-read from it.
+    const title = panel.dataset.panelKey
+      || h2.textContent.replace(/\s*\(.*$/, '').trim();
+    if(!COLLAPSIBLE.some(t=> title.startsWith(t))) return;
+
+    if(!panel.dataset.collapsible){
+      panel.dataset.collapsible = '1';
+      panel.dataset.panelKey = title;
+      const body = document.createElement('div');
+      body.className = 'panel-body';
+      while(h2.nextSibling) body.appendChild(h2.nextSibling);
+      panel.appendChild(body);
+      // Caret leads, so the affordance is the first thing read, not the last.
+      const caret = document.createElement('span');
+      caret.className = 'panel-caret';
+      const label = document.createElement('span');
+      label.className = 'panel-label';
+      while(h2.firstChild) label.appendChild(h2.firstChild);
+      const hint = document.createElement('span');
+      hint.className = 'panel-hint';
+      h2.appendChild(caret);
+      h2.appendChild(label);
+      h2.appendChild(hint);
+      h2.classList.add('panel-toggle');
+      h2.addEventListener('click', ()=>{
+        const k = panel.dataset.panelKey;
+        if(collapsedPanels.has(k)) collapsedPanels.delete(k); else collapsedPanels.add(k);
+        saveCollapsed();
+        applyCollapsible();
+      });
+    }
+    const closed = collapsedPanels.has(panel.dataset.panelKey);
+    panel.classList.toggle('is-collapsed', closed);
+    const c = panel.querySelector('.panel-caret');
+    if(c) c.textContent = '\u25BC';
+    const hintEl = panel.querySelector('.panel-hint');
+    if(hintEl) hintEl.textContent = closed ? 'show' : 'hide';
+    h2.title = closed ? 'Click to show this section' : 'Click to hide this section';
+  });
+}
+
+async function saveCollapsed(){
+  try{ await storageSet('collapsedPanels', JSON.stringify([...collapsedPanels])); }catch(e){}
+}
+async function loadCollapsed(){
+  try{
+    const raw = await storageGet('collapsedPanels');
+    if(raw) collapsedPanels = new Set(JSON.parse(raw) || []);
+  }catch(e){}
+  applyCollapsible();
+}
+
 function renderBankStatus(){
   const el = document.getElementById('bankStatus');
   const btn = document.getElementById('bankNightBtn');
@@ -2348,7 +2782,7 @@ function renderHistory(){
           const row = document.createElement('div');
           row.className = 'history-row';
           const nm = document.createElement('span'); nm.textContent = playerName(id);
-          const select = buildPlacementSelect(pod, id, render);
+          const select = buildScoreControls(pod, id, render);
           row.appendChild(nm); row.appendChild(select);
           block.appendChild(row);
         });
@@ -2393,8 +2827,8 @@ function makeByeCard(){
     row.appendChild(nameSpan);
     const tag = document.createElement('span');
     tag.className = 'bye-tag';
-    tag.textContent = '+1 pt';
-    tag.title = 'Byes still get the attendance point';
+    tag.textContent = 'bye';
+    tag.title = 'Sitting out this round, no points scored';
     row.appendChild(tag);
     row.addEventListener('dragstart', (e)=> e.dataTransfer.setData('text/plain', id));
     list.appendChild(row);
@@ -2403,7 +2837,7 @@ function makeByeCard(){
 
   const note = document.createElement('div');
   note.className = 'pod-empty-hint';
-  note.textContent = 'Sitting out. Still gets the attendance point.';
+  note.textContent = 'Sitting out this round. No points scored.';
   card.appendChild(note);
 
   card.addEventListener('dragover', (e)=>{ e.preventDefault(); card.classList.add('dragover'); });
@@ -2445,6 +2879,23 @@ function makeChip(id){
   return chip;
 }
 
+// Tells you at a glance which tables still need entering, so you are not
+// re-reading tables you already did.
+function podStatus(pod){
+  if(pod.members.length === 0) return { done:false, text:'empty', cls:'' };
+  if(scoringMode === 'placement'){
+    const missing = pod.members.filter(id=> pod.ranks[id] === undefined || pod.ranks[id] === null).length;
+    return missing === 0
+      ? { done:true, text:'recorded', cls:'ok' }
+      : { done:false, text:`${missing} to place`, cls:'todo' };
+  }
+  const maxKills = pod.members.length - 1;
+  const used = podKillsUsed(pod);
+  if(used > maxKills) return { done:false, text:`${used} kills, max ${maxKills}`, cls:'bad' };
+  if(!pod.winner) return { done:false, text:`${used}/${maxKills} kills, no winner`, cls:'todo' };
+  return { done:true, text:'recorded', cls:'ok' };
+}
+
 function makePodCard(pod, index){
   const card = document.createElement('div');
   card.className = 'pod';
@@ -2460,6 +2911,11 @@ function makePodCard(pod, index){
   title.textContent = defaultTableLabel(index);
   const right = document.createElement('div');
   right.className = 'pod-head-right';
+  const st = podStatus(pod);
+  if(st.done) card.classList.add('pod-done');
+  const badge = document.createElement('div');
+  badge.className = 'pod-status ' + st.cls;
+  badge.textContent = st.done ? '✓ recorded' : st.text;
   const count = document.createElement('div');
   const outOfRange = pod.members.length !== 0 && (pod.members.length < 2 || pod.members.length > 4);
   count.className = 'pod-count' + (outOfRange ? ' bad' : '');
@@ -2473,6 +2929,7 @@ function makePodCard(pod, index){
   head.appendChild(title); head.appendChild(right);
   head.addEventListener('dragstart', (e)=>{ e.stopPropagation(); e.dataTransfer.setData('text/plain', 'POD:'+index); });
   card.appendChild(head);
+  if(pod.members.length) card.appendChild(badge);
 
   const list = document.createElement('div');
   list.className = 'pod-players';
@@ -2508,7 +2965,7 @@ function makePodCard(pod, index){
       top.appendChild(x);
       row.appendChild(top);
 
-      const select = buildPlacementSelect(pod, id, render);
+      const select = buildScoreControls(pod, id, render);
       row.appendChild(select);
 
       row.addEventListener('click', (e)=>{ if(e.target!==x && e.target!==ren && e.target.tagName!=='SELECT') onPlayerClick(id); });
@@ -2688,6 +3145,8 @@ document.getElementById('nightLabelInput').addEventListener('input', (e)=>{
 });
 document.getElementById('playerFilter').addEventListener('input', render);
 document.getElementById('exportSeasonBtn').addEventListener('click', exportSeasonBackup);
+document.getElementById('csvStandingsBtn').addEventListener('click', exportStandingsCsv);
+document.getElementById('csvNightsBtn').addEventListener('click', exportNightsCsv);
 document.getElementById('importSeasonBtn').addEventListener('click', ()=> document.getElementById('importSeasonFile').click());
 document.getElementById('importSeasonFile').addEventListener('change', (e)=>{
   const f = e.target.files && e.target.files[0];
@@ -2732,12 +3191,14 @@ document.getElementById('clearAccentBtn').addEventListener('click', ()=>{
   applyTheme(document.getElementById('themeSelect').value, t.gold);
 });
 document.getElementById('saveSettingsBtn').addEventListener('click', saveSettings);
+document.getElementById('scoringModeSelect').addEventListener('change', (e)=>{ scoringMode = e.target.value; render(); });
 document.getElementById('appNameInput').addEventListener('input', (e)=> applyAppName(e.target.value));
 
 render();
 loadSettings();
 loadSeason();
 loadRoster();
+loadCollapsed();
 loadLiveNight();
 </script>
 </body>
