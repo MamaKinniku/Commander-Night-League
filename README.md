@@ -58,7 +58,8 @@ you want a table of 4 with one bye, or a 3 and a 2.
 
 **Rounds.** Set a length, hit start. The clock runs off real time, so it stays
 accurate when the window is behind your TV display and it survives a refresh.
-The TV shows the round number.
+The TV shows the round number. The clock turns amber with five minutes left,
+red with two, and pulses at zero, on both the control window and the TV.
 
 Scoring defaults to eliminations: 1 point per kill, 1 for the last player out,
 2 for winning the pod. Enter what the table reports. Nothing is forced, so a
@@ -68,10 +69,20 @@ Placement scoring, 1st through 4th, is available in Settings instead.
 Each table shows whether it has been recorded yet, and the Finish round button
 sits under the tables with a running count of how many are done.
 
+**Moving people around.** Drag a name between tables, or click a name then
+click a table. On a seated player, `↩` sends just that person back to
+Unassigned and keeps them in the night. `✕` drops them out of the night
+entirely and asks first, since dropping clears whatever you had recorded for
+them at that table. The `✕` on a table header clears the whole table.
+
 **Fixing mistakes.** Revert last round takes the scores back off and puts those
 tables up again. Round history lets you open any past round and change
 placements, swapping two players if you entered them backwards. Point
 adjustments need a confirm and get logged, so you can see what was changed.
+
+Once a night is banked to the season its rounds are locked, because the season
+is holding a snapshot of those numbers. Unbank it from Season Stats, fix it,
+and bank it again.
 
 **League and Freeplay.** Two completely separate boards with their own players,
 tables and timers. Run both at once and flip between them. Only League counts
@@ -88,8 +99,16 @@ a row per player per night, for opening in Excel or Sheets.
 who showed up instead of typing the list again.
 
 **TV display.** Opens in its own window with big standings, tables, byes and
-the clock. Each display window has its own League and Freeplay tabs, so you can
-have more than one screen showing different things.
+the clock. It sizes itself to whatever screen it lands on: standings flow into
+more columns and the type grows or shrinks so the whole room fits on one screen
+with no scrolling, whether that is six players on a 1080p TV or forty on an old
+projector. Everyone on the top score is highlighted as a leader, so a four-way
+tie reads as four leaders rather than a winner. On a very large night, past what
+even the smallest readable type will fit, it shows as many as it can and says how
+many are not on screen rather than quietly cutting them off. Each display window
+has its own League and Freeplay tabs, so it ignores whatever you are doing on the
+control window, and those tabs fade out of the way until you move the mouse. Open
+one per screen.
 
 **Looks.** Five themes, a custom accent colour, and you can rename the app.
 Settings stick.

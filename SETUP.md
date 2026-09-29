@@ -15,7 +15,9 @@
 1. Put everything in one folder, something like `C:\Commander Night\`. The
    launchers look for `index.html` sitting next to them, so keep them together.
 2. Double-click `Launch Commander Night.bat` to check it opens. You should get
-   a plain window with no browser clutter.
+   a plain window with no browser clutter. If Chrome and Edge are both
+   installed somewhere unusual the launcher will say so and fall back to your
+   default browser, which still works, it just has the address bar.
 3. Right-click that same file, then Send to, then Desktop (create shortcut).
    Rename the shortcut to whatever you like.
 4. If you want a nicer icon, right-click the shortcut, then Properties, then
@@ -36,6 +38,10 @@ it with. Two things follow from that:
 
 Hosting it on GitHub Pages avoids both problems. See `README.md`.
 
+The board also saves itself as you go, so an accidental refresh or a closed
+window mid-round puts everything back: players, tables, results you had already
+entered, the round number and the clock.
+
 ## Backups
 
 Banking a night automatically saves a JSON file to your Downloads folder. Keep
@@ -52,6 +58,10 @@ summary of that night's tables, placements and standings.
 
 The clean launcher hides the browser menu, and that menu is where casting
 starts. So casting needs the other launcher.
+
+The display sizes itself to the screen it is on, so you do not need to adjust
+anything for a smaller TV or an older projector. It fits the whole field on one
+screen and never needs scrolling.
 
 ### Chromecast
 
