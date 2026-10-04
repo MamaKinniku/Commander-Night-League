@@ -495,7 +495,7 @@
       <option value="elimination">Eliminations (1 per kill, 1 last out, 2 win)</option>
       <option value="placement">Placement (1st to 4th)</option>
     </select>
-    <p class="hint" style="margin-top:6px;">Changing this only affects rounds you score from now on. Nights already banked keep the points they were banked with.</p>
+    <p class="hint" style="margin-top:6px;">This changes how every round on tonight's board is counted, including rounds already finished. A round scored the other way counts as 0 until you switch back. Nothing is deleted, and nights already banked keep the points they were banked with.</p>
 
     <label class="field-label">Season backup</label>
     <label class="row" style="align-items:flex-start; margin-top:0; cursor:pointer;">
@@ -2130,27 +2130,41 @@ async function saveSeasonArchive(){
 // recorded rounds hold no data for, every past round reads as zero. That is
 // harmless on screen and reverses the moment you switch back, but banking in
 // that state writes the zeros into the season permanently.
+// Checked round by round: a night where only one round was scored the other
+// way loses that round just as silently as a night where all of them were.
 function roundsScoredInOtherMode(){
-  let elim = 0, place = 0;
-  state.rounds.forEach(r=> (r.pods||[]).forEach(pod=>{
-    if((pod.kills && Object.values(pod.kills).some(v=> v > 0)) || pod.winner || pod.lastOut) elim++;
-    if(pod.ranks && Object.keys(pod.ranks).length) place++;
-  }));
-  if(scoringMode === 'placement' && elim > 0 && place === 0) return 'eliminations';
-  if(scoringMode === 'elimination' && place > 0 && elim === 0) return 'placements';
-  return null;
+  let lost = 0;
+  state.rounds.forEach(r=>{
+    let elim = false, place = false;
+    (r.pods||[]).forEach(pod=>{
+      if((pod.kills && Object.values(pod.kills).some(v=> v > 0)) || pod.winner || pod.lastOut) elim = true;
+      if(pod.ranks && Object.keys(pod.ranks).length) place = true;
+    });
+    if(scoringMode === 'placement' && elim && !place) lost++;
+    if(scoringMode === 'elimination' && place && !elim) lost++;
+  });
+  if(!lost) return null;
+  return {
+    other: scoringMode === 'placement' ? 'eliminations' : 'placements',
+    current: scoringMode === 'placement' ? 'Placement' : 'Eliminations',
+    rounds: lost, total: state.rounds.length,
+  };
+}
+function mismatchLead(o){
+  return o.rounds === o.total
+    ? "Tonight's rounds were"
+    : `${o.rounds} of tonight's ${o.total} rounds ${o.rounds === 1 ? 'was' : 'were'}`;
 }
 
 function bankNightToSeason(){
   if(currentWorkspace !== 'league'){ alert('Only League nights bank to season stats.'); return false; }
   if(state.rounds.length === 0){ alert('Finish at least one round before banking this night.'); return false; }
   if(state.bankedId){ alert('This night has already been banked to the season.'); return false; }
-  const otherMode = roundsScoredInOtherMode();
-  if(otherMode && !confirm(
-      `Tonight's rounds were recorded using ${otherMode}, but scoring is currently set to ` +
-      `${scoringMode === 'placement' ? 'Placement' : 'Eliminations'}.\n\n` +
-      'Everyone reads as 0 points right now because of that, and banking would store those zeros ' +
-      'in the season.\n\nChange it back in Settings first. Bank anyway?')) return false;
+  const mm = roundsScoredInOtherMode();
+  if(mm && !confirm(
+      `${mismatchLead(mm)} recorded using ${mm.other}, but scoring is currently set to ${mm.current}.\n\n` +
+      `Those rounds count as 0 points right now, and banking would store them that way in the season.\n\n` +
+      'Change it back in Settings first. Bank anyway?')) return false;
   const label = state.nightLabel || '';
   const standings = computeStandings().map(s=>({name:s.name, points:s.points, rounds:s.rounds}));
   if(standings.length === 0){ alert('No scored players to bank.'); return false; }
@@ -3053,10 +3067,10 @@ function renderBankStatus(){
     btn.disabled = true;
     btn.textContent = '🏆 Bank night to season';
   } else {
-    const otherMode = roundsScoredInOtherMode();
-    el.className = 'bank-status ' + (otherMode ? 'bad' : 'warn');
-    el.textContent = otherMode
-      ? `⚠ These rounds were recorded using ${otherMode}, but scoring is set to ${scoringMode === 'placement' ? 'Placement' : 'Eliminations'}, so everyone shows 0. Change it back in Settings.`
+    const mm = roundsScoredInOtherMode();
+    el.className = 'bank-status ' + (mm ? 'bad' : 'warn');
+    el.textContent = mm
+      ? `⚠ ${mismatchLead(mm)} recorded using ${mm.other}, but scoring is set to ${mm.current}, so ${mm.rounds === mm.total ? 'they count' : 'those count'} as 0. Change it back in Settings.`
       : `⚠ ${state.rounds.length} round(s) scored, not banked yet.`;
     btn.disabled = false;
     btn.textContent = '🏆 Bank night to season';
