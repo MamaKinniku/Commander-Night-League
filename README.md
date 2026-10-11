@@ -49,9 +49,12 @@ lose your season. A web address does not move.
 ## What it does
 
 **Seating.** Tables are always 3 or 4 players. Hit Seat players and it fills
-them. Three methods: Random, which avoids repeat pairings where it can; By
-score, which puts the leaders together for a finals table; and Balanced, which
-spreads strong players out so no table is stacked. Pick per round.
+them. Four methods: Random, which avoids repeat pairings where it can; By
+score, which puts the leaders together for a finals table; Balanced, which
+spreads strong players out so no table is stacked; and Winners up, which sits
+last round's pod winners together at the top table or two and shuffles everyone
+else behind them. Winners up is the one for a "winners play winners" round 2,
+and it will not hand a winner the bye. Pick per round.
 
 Five players is the only count that does not divide evenly, so it asks whether
 you want a table of 4 with one bye, or a 3 and a 2.
@@ -68,6 +71,10 @@ Placement scoring, 1st through 4th, is available in Settings instead.
 
 Each table shows whether it has been recorded yet, and the Finish round button
 sits under the tables with a running count of how many are done.
+
+Tonight's standings break ties on points, then pod wins, then kills. Players
+who are level on all three share a place, shown with an `=` in front of the
+rank, and the next player skips to the place after them.
 
 **Moving people around.** Drag a name between tables, or click a name then
 click a table. On a seated player, `↩` sends just that person back to
@@ -99,13 +106,19 @@ a row per player per night, for opening in Excel or Sheets.
 who showed up instead of typing the list again.
 
 **TV display.** Opens in its own window with big standings, tables, byes and
-the clock. It sizes itself to whatever screen it lands on: standings flow into
+the clock. Each window has three views: **Overview** shows standings and seating
+side by side, **Seating** gives the whole screen to the tables, and
+**Standings** gives it to the leaderboard. Switch with the buttons along the top
+or press 1, 2 or 3 on the display. Seating is the one to put up at the start of
+a round on a busy night, since every table gets far more room. It sizes itself to whatever screen it lands on: standings flow into
 more columns and the type grows or shrinks so the whole room fits on one screen
 with no scrolling, whether that is six players on a 1080p TV or forty on an old
 projector. Everyone on the top score is highlighted as a leader, so a four-way
 tie reads as four leaders rather than a winner. On a very large night, past what
 even the smallest readable type will fit, it shows as many as it can and says how
-many are not on screen rather than quietly cutting them off. Each display window
+many are not on screen rather than quietly cutting them off. Browser zoom is
+safe: zooming in and back out redraws everything. The views are the better way
+to get bigger text, though. Each display window
 has its own League and Freeplay tabs, so it ignores whatever you are doing on the
 control window, and those tabs fade out of the way until you move the mouse. Open
 one per screen.

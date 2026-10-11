@@ -360,6 +360,7 @@
           <option value="random">Random</option>
           <option value="score">By score (top players together)</option>
           <option value="balanced">Balanced (mix strong and weak)</option>
+          <option value="winners">Winners up (last round's pod winners together)</option>
         </select>
         <div class="mode-note" id="seatingModeNote"></div>
 
@@ -384,7 +385,7 @@
         <h2>Display</h2>
         <button class="block" id="tvBtn">📺 Open TV display (new window)</button>
         <button class="block subtle" id="castHelpBtn">How do I get this on a TV?</button>
-        <p class="hint">Each display window has its own League and Freeplay tabs, so it ignores whatever you are doing here. Open one per screen.</p>
+        <p class="hint">Each display window has its own League and Freeplay tabs and its own view: <b>Overview</b>, <b>Seating</b> or <b>Standings</b>. Move the mouse over the display to see the buttons, or press 1, 2 or 3 on it. Open one per screen.</p>
       </div>
     </div>
 
@@ -835,7 +836,25 @@ function orderPlayersForMode(ids, mode, tableCount){
     return buckets.flat();
   }
 
+  if(mode === 'winners'){
+    // Last round's pod winners fill the top table or two, everyone else is
+    // shuffled in behind them. If the winner count does not fill a table the
+    // open seats go to whoever is next in the shuffle.
+    const w = new Set(lastRoundWinners());
+    return [...shuffle(ids.filter(id=> w.has(id))), ...shuffle(ids.filter(id=> !w.has(id)))];
+  }
+
   return shuffle(ids); // 'random'
+}
+
+// Active players who won their pod in the most recent finished round.
+function lastRoundWinners(){
+  const last = state.rounds[state.rounds.length - 1];
+  if(!last) return [];
+  const active = new Set(activePlayerIds());
+  const out = [];
+  last.pods.forEach(pod=>{ pod.members.forEach(id=>{ if(active.has(id) && wonPod(pod, id)) out.push(id); }); });
+  return out;
 }
 
 function currentSeatingMode(){
@@ -852,10 +871,13 @@ function byeCountFor(id){
   return n;
 }
 
-function chooseByes(ids, howMany){
+function chooseByes(ids, howMany, keepSeated){
   if(howMany <= 0) return { seated: [...ids], byes: [] };
   if(howMany >= ids.length) return { seated: [], byes: [...ids] };
-  const pool = shuffle(ids).sort((a,b)=> byeCountFor(a) - byeCountFor(b));
+  // keepSeated is a set of players who should only sit out as a last resort,
+  // used so a pod winner is not handed the bye in a winners-up round.
+  const keep = keepSeated || new Set();
+  const pool = shuffle(ids).sort((a,b)=> ((keep.has(a)?1:0) - (keep.has(b)?1:0)) || (byeCountFor(a) - byeCountFor(b)));
   const byes = pool.slice(0, howMany);
   const byeSet = new Set(byes);
   return { seated: ids.filter(id=> !byeSet.has(id)), byes };
@@ -874,7 +896,8 @@ async function randomizeAll(){
   const sizes = await computeTableSizes(allIds.length);
   const totalSeats = sizes.reduce((a,b)=>a+b, 0);
 
-  const { seated, byes } = chooseByes(allIds, allIds.length - totalSeats);
+  const protect = mode === 'winners' ? new Set(lastRoundWinners()) : null;
+  const { seated, byes } = chooseByes(allIds, allIds.length - totalSeats, protect);
 
   let best = null, bestScore = Infinity;
   const attempts = mode === 'random' ? (seated.length > 40 ? 60 : 250) : 40;
@@ -1410,33 +1433,56 @@ function applyAdjustment(playerId, delta, note){
   render();
 }
 
+// Did this player win the pod, whichever way it was scored?
+function wonPod(pod, id){
+  if(pod.winner) return pod.winner === id;
+  return !!pod.ranks && pod.ranks[id] === 1;
+}
+
+// Tonight's standings break ties the same way the season does: points, then
+// pod wins, then kills. They used to fall back to the alphabet, which decided
+// who got the last packs when two players were level on the prize cut.
+// Players who are level on all three share a rank, so a four-way tie reads as
+// four 1sts rather than 1st to 4th.
 function computeStandingsFor(ws){
   const map = {};
+  const blank = ()=> ({points:0, rounds:0, wins:0, kills:0});
   ws.rounds.forEach(round=>{
     round.pods.forEach(pod=>{
       pod.members.forEach(id=>{
-        if(!map[id]) map[id] = {points:0, rounds:0};
+        if(!map[id]) map[id] = blank();
         map[id].rounds += 1;
         map[id].points += podPointsFor(pod, id);
+        if(wonPod(pod, id)) map[id].wins += 1;
+        map[id].kills += (pod.kills && pod.kills[id]) || 0;
       });
     });
     // Byes score nothing. Attendance is tracked in the rounds count, not points.
     round.byes.forEach(id=>{
-      if(!map[id]) map[id] = {points:0, rounds:0};
+      if(!map[id]) map[id] = blank();
       map[id].rounds += 1;
     });
   });
   const adjPlayerIds = new Set(ws.adjustmentLog.map(e=>e.playerId));
-  adjPlayerIds.forEach(id=>{ if(!map[id]) map[id] = {points:0, rounds:0}; });
-  return Object.keys(map)
+  adjPlayerIds.forEach(id=>{ if(!map[id]) map[id] = blank(); });
+  const out = Object.keys(map)
     .filter(id => ws.players.find(p=>p.id===id))
     .map(id=>{
       const p = ws.players.find(p=>p.id===id);
       const base = map[id].points;
       const adj = totalAdjustmentIn(ws, id);
-      return { id, name: p.name, dropped: p.dropped, basePoints: base, adjustment: adj, points: base+adj, rounds: map[id].rounds };
+      return { id, name: p.name, dropped: p.dropped, basePoints: base, adjustment: adj,
+               points: base+adj, rounds: map[id].rounds, wins: map[id].wins, kills: map[id].kills };
     })
-    .sort((a,b)=> b.points - a.points || a.name.localeCompare(b.name));
+    .sort((a,b)=> b.points - a.points || b.wins - a.wins || b.kills - a.kills || a.name.localeCompare(b.name));
+  let rank = 0;
+  out.forEach((s, i)=>{
+    const prev = out[i-1];
+    if(!prev || prev.points !== s.points || prev.wins !== s.wins || prev.kills !== s.kills) rank = i + 1;
+    s.rank = rank;
+  });
+  out.forEach((s, i)=>{ s.tied = !!((out[i-1] && out[i-1].rank === s.rank) || (out[i+1] && out[i+1].rank === s.rank)); });
+  return out;
 }
 function computeStandings(){ return computeStandingsFor(state); }
 
@@ -1541,9 +1587,12 @@ function tvShellHTML(winId){
   *{box-sizing:border-box;}
   html,body{height:100%;}
   body{margin:0;background:${t.bg};color:${t.parchment};font-family:'Inter',sans-serif;
-    padding:clamp(14px,2.2vh,34px) clamp(18px,2vw,40px);overflow:hidden;display:flex;flex-direction:column;}
-  h1{font-family:'Old Fenris','Cinzel',serif;font-size:clamp(26px,4.4vh,52px);margin:0;color:${t.gold};
-    text-align:center;letter-spacing:.02em;line-height:1.1;}
+    padding:clamp(18px,3.8vh,52px) clamp(18px,2vw,40px) clamp(14px,2.2vh,34px);
+    overflow:hidden;display:flex;flex-direction:column;}
+  /* The title was sat against the top edge with the button row right under it.
+     The buttons now float over the top when needed, so the title gets that room. */
+  h1{font-family:'Old Fenris','Cinzel',serif;font-size:clamp(30px,6.4vh,78px);margin:0 0 clamp(2px,.5vh,8px);
+    color:${t.gold};text-align:center;letter-spacing:.03em;line-height:1.05;}
   .timer{font-family:'JetBrains Mono',monospace;font-size:clamp(52px,11.5vh,116px);text-align:center;
     font-weight:700;margin:0 0 clamp(8px,1.6vh,20px);letter-spacing:.02em;line-height:1;
     transition:color .3s;}
@@ -1553,8 +1602,12 @@ function tvShellHTML(winId){
   .timer.zero{color:${t.danger};animation:pulse 1s infinite;}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
 
-  .tv-layout{display:grid;grid-template-columns:1.15fr 1.3fr;gap:clamp(14px,1.6vw,30px);
-    flex:1;min-height:0;}
+  /* minmax(0, ...) pins the split. Plain fr columns let a panel's content
+     widen it, so the tables panel, still at its last size while the standings
+     were being measured, could squeeze the standings and cut off names. */
+  .tv-layout{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1.3fr);
+    grid-template-rows:minmax(0,1fr);gap:clamp(14px,1.6vw,30px);flex:1;min-height:0;}
+  body.view-seating .tv-layout, body.view-standings .tv-layout{grid-template-columns:minmax(0,1fr);}
   .tv-panel{background:${t.panel};border:1px solid ${t.panelLine};border-radius:16px;
     padding:clamp(14px,2vh,24px);display:flex;flex-direction:column;min-height:0;}
   /* Standings and Seating are a matched pair, so they grow together. */
@@ -1579,13 +1632,21 @@ function tvShellHTML(winId){
   .st-row.tier2{box-shadow:inset 3px 0 0 ${t.gold}88;}
   .st-row.tier3{box-shadow:inset 3px 0 0 ${t.panelLine};}
   .st-row.is-dropped{opacity:.5;}
-  .st-row.st-more{display:block;text-align:center;color:${t.muted};font-style:italic;border-bottom:none;}
+  /* Sits under the list rather than inside it. Inside, a long note widened its
+     column and, because grid rows are shared, a wrapped note pushed the bottom
+     row of every column off the screen. */
+  .st-more{text-align:center;color:${t.muted};font-style:italic;
+    font-size:clamp(13px,2vh,22px);padding:.45em 0 0;}
 
   /* The column width must NOT scale with the type. If it does, a long name and
      its column shrink together, the name can never stop being clipped, and the
      fit drives itself to its minimum on every screen. */
   .pods-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,230px),1fr));
     gap:clamp(10px,1.4vh,18px);align-content:start;font-size:calc(22px * var(--pod-scale,1));}
+  /* Once the fit has picked a column count, it is used exactly. Packing in as
+     many narrow columns as would fit left a full-screen Seating view with one
+     short row of tables and half the screen empty. */
+  .pods-grid.fixed-cols{grid-template-columns:repeat(var(--pod-cols,3),minmax(0,1fr));}
   /* The table number used to sit inside the card at the same size as the names,
      so it read as one more name. It now sits outside the box entirely, with the
      number carrying the weight and the word acting as a small label. */
@@ -1610,26 +1671,46 @@ function tvShellHTML(winId){
 
   /* Operator controls. The room does not need to look at these, so they sit
      back until the mouse moves. */
-  .ws-tabs{display:flex;justify-content:center;gap:14px;margin:0 0 clamp(4px,1vh,10px);
-    opacity:.18;transition:opacity .35s;}
+  /* Controls live in the top corners: boards on the left, views on the right.
+     They never cover the title and never move, so they are easy to hit. They
+     just dim when nobody is using them, since the room does not need them. */
+  .ws-tabs{position:fixed;top:clamp(10px,1.6vh,22px);z-index:10;display:flex;gap:clamp(6px,.7vw,12px);
+    opacity:.22;transition:opacity .3s;}
+  .ws-tabs.left{left:clamp(14px,1.6vw,32px);}
+  .ws-tabs.right{right:clamp(14px,1.6vw,32px);}
+  .ws-tabs:hover{opacity:1;}
+
+  /* Three views per display window. Overview splits the screen; Seating and
+     Standings each take the whole thing, so a big night still fits at a size
+     the room can read. */
+  body.view-seating .p-standings, body.view-standings .p-seating{display:none;}
   body.pointer-active .ws-tabs{opacity:1;}
   .round-label{font-family:'Old Fenris','Cinzel',serif;font-size:clamp(17px,2.7vh,30px);text-align:center;
     color:${t.muted};letter-spacing:.06em;margin:0 0 2px;}
-  .ws-tab{font-family:'Old Fenris','Cinzel',serif;font-size:clamp(13px,1.7vh,18px);letter-spacing:.05em;
-    text-transform:uppercase;background:transparent;border:2px solid ${t.panelLine};color:${t.muted};
-    padding:.45em 1.4em;border-radius:10px;cursor:pointer;}
+  .ws-tab{font-family:'Old Fenris','Cinzel',serif;font-size:clamp(11px,1.45vh,16px);letter-spacing:.05em;
+    text-transform:uppercase;background:${t.bg};border:2px solid ${t.panelLine};color:${t.muted};
+    padding:.42em 1.05em;border-radius:9px;cursor:pointer;white-space:nowrap;}
+  .ws-tab:hover{border-color:${t.gold};color:${t.parchment};}
+  .ws-tab:focus{outline:none;}
+  /* Older 1024-wide screens: tighter buttons so the corners stay clear of the title. */
+  @media (max-width:1180px){ .ws-tabs{gap:5px;} .ws-tab{padding:.38em .62em;letter-spacing:.03em;} }
   .ws-tab.active{color:${t.gold};border-color:${t.gold};}
 </style></head><body>
 <h1 id="tvAppName">${esc(appName)}</h1>
-<div class="ws-tabs">
+<div class="ws-tabs left">
   <button class="ws-tab" id="tvTabLeague" onclick="window.opener && window.opener.setTVWindowWorkspace('${winId}','league')">🏆 League</button>
   <button class="ws-tab" id="tvTabFreeplay" onclick="window.opener && window.opener.setTVWindowWorkspace('${winId}','freeplay')">🎲 Freeplay</button>
+</div>
+<div class="ws-tabs right">
+  <button class="ws-tab" id="tvView_overview" title="Key 1" onclick="window.opener && window.opener.setTVWindowView('${winId}','overview')">Overview</button>
+  <button class="ws-tab" id="tvView_seating" title="Key 2" onclick="window.opener && window.opener.setTVWindowView('${winId}','seating')">Seating</button>
+  <button class="ws-tab" id="tvView_standings" title="Key 3" onclick="window.opener && window.opener.setTVWindowView('${winId}','standings')">Standings</button>
 </div>
 <div id="tvRound" class="round-label">Round 1</div>
 <div id="tvTimer" class="timer">--:--</div>
 <div class="tv-layout">
-  <div class="tv-panel"><h2>Standings</h2><div class="tv-fit" id="tvStandingsFit"><div id="tvStandings"></div></div></div>
-  <div class="tv-panel"><h2>Seating</h2><div class="tv-fit" id="tvPodsFit"><div id="tvPods" class="pods-grid"></div></div></div>
+  <div class="tv-panel p-standings"><h2>Standings</h2><div class="tv-fit" id="tvStandingsFit"><div id="tvStandings"></div></div></div>
+  <div class="tv-panel p-seating"><h2>Seating</h2><div class="tv-fit" id="tvPodsFit"><div id="tvPods" class="pods-grid"></div></div></div>
 </div>
 <script>
   // Tabs are for whoever is running the night, not the room.
@@ -1638,7 +1719,21 @@ function tvShellHTML(winId){
     function wake(){ document.body.classList.add('pointer-active'); clearTimeout(t);
       t = setTimeout(function(){ document.body.classList.remove('pointer-active'); }, 2500); }
     document.addEventListener('mousemove', wake);
-    document.addEventListener('click', wake);
+    document.addEventListener('click', function(e){
+      wake();
+      // Drop focus after a click, or the last button clicked keeps looking
+      // selected after the view is changed with the 1, 2, 3 keys.
+      var b = e.target.closest && e.target.closest('.ws-tab'); if(b) b.blur();
+    });
+
+    // 1, 2, 3 switch between Overview, Seating and Standings without hunting
+    // for the faded buttons.
+    var views = {'1':'overview','2':'seating','3':'standings'};
+    document.addEventListener('keydown', function(e){
+      var v = views[e.key];
+      if(!v || e.ctrlKey || e.metaKey || e.altKey) return;
+      try{ window.opener && window.opener.setTVWindowView('${winId}', v); }catch(err){}
+    });
 
     // The first fit runs before the web fonts arrive, so its measurements are
     // taken with fallback metrics and names can end up clipped once the real
@@ -1677,6 +1772,8 @@ function getThemeVars(){
 let tvWindows = []; // [{ id, win, workspace }]
 let tvWinIdCounter = 1;
 let lastTVWorkspace = 'league';
+const TV_VIEWS = ['overview','seating','standings'];
+let lastTVView = 'overview';
 
 function openTVWindow(){
   const id = 'tv' + (tvWinIdCounter++);
@@ -1685,8 +1782,16 @@ function openTVWindow(){
   win.document.open();
   win.document.write(tvShellHTML(id));
   win.document.close();
-  const entry = { id, win, workspace: lastTVWorkspace };
+  const entry = { id, win, workspace: lastTVWorkspace, view: lastTVView };
   tvWindows.push(entry);
+  renderOneTVWindow(entry);
+}
+
+function setTVWindowView(id, view){
+  const entry = tvWindows.find(e=>e.id===id);
+  if(!entry || !TV_VIEWS.includes(view)) return;
+  entry.view = view;
+  lastTVView = view;
   renderOneTVWindow(entry);
 }
 
@@ -1718,6 +1823,16 @@ function renderOneTVWindow(entry){
   if(tabLeague) tabLeague.classList.toggle('active', entry.workspace === 'league');
   if(tabFreeplay) tabFreeplay.classList.toggle('active', entry.workspace === 'freeplay');
 
+  const view = TV_VIEWS.includes(entry.view) ? entry.view : 'overview';
+  if(doc.body){
+    doc.body.classList.toggle('view-seating', view === 'seating');
+    doc.body.classList.toggle('view-standings', view === 'standings');
+  }
+  TV_VIEWS.forEach(v=>{
+    const b = doc.getElementById('tvView_' + v);
+    if(b) b.classList.toggle('active', v === view);
+  });
+
   const roundEl = doc.getElementById('tvRound');
   if(roundEl){
     // Rounds already finished are locked in, so the live one is the next number.
@@ -1747,7 +1862,7 @@ function renderOneTVWindow(entry){
       const rows = standings.map((s,i)=>{
         const t = tiers.indexOf(s.points);
         const cls = 'st-row' + (t >= 0 ? ' tier'+(t+1) : '') + (s.dropped ? ' is-dropped' : '');
-        return `<div class="${cls}"><span class="st-rank">${i+1}</span>` +
+        return `<div class="${cls}"><span class="st-rank">${s.tied ? '=' : ''}${s.rank}</span>` +
                `<span class="st-name">${esc(s.name)}${s.dropped?' (out)':''}</span>` +
                `<span class="st-pts">${s.points}</span></div>`;
       }).join('');
@@ -1786,59 +1901,91 @@ function fitTVWindow(entry){
   if(!entry.win || entry.win.closed) return;
   let doc;
   try{ doc = entry.win.document; } catch(e){ return; }
+  const view = TV_VIEWS.includes(entry.view) ? entry.view : 'overview';
+  const visible = el => el && el.getClientRects().length > 0 && el.clientHeight > 0;
 
   const list = doc.querySelector('#tvStandings .st-list');
   const standFit = doc.getElementById('tvStandingsFit');
-  if(list && standFit){
+  if(list && visible(standFit)){
     const n = list.children.length;
+    const full = view === 'standings';
+    const max = full ? 3 : 2.2;
     // Try each shape and keep whichever lets the names be biggest, rather than
     // guessing from the head count alone. One column reads best when it fits.
-    let best = { cols: 1, scale: 0 };
-    const options = n <= 8 ? [1] : (n <= 18 ? [1,2] : (n <= 34 ? [2,3] : [3,4]));
+    // With the whole screen to work with, more columns are worth trying.
+    const options = full
+      ? (n <= 8 ? [1,2] : (n <= 18 ? [1,2,3] : (n <= 34 ? [2,3,4] : [3,4,5])))
+      : (n <= 8 ? [1] : (n <= 18 ? [1,2] : (n <= 34 ? [2,3] : [3,4])));
+    let best = { cols: options[0], scale: 0 };
     options.forEach(cols=>{
       list.style.setProperty('--st-rows', Math.ceil(n / cols));
-      const scale = fitToBox(list, standFit, '--st-scale', 2.2, '.st-name', 0.42);
-      // A second column has to earn itself; a hair more size is not worth it.
+      const scale = fitToBox(list, standFit, '--st-scale', max, '.st-name', 0.42);
+      // Another column has to earn itself; a hair more size is not worth it.
       if(scale > best.scale * 1.06) best = { cols, scale };
     });
     list.style.setProperty('--st-rows', Math.ceil(n / best.cols));
-    fitToBox(list, standFit, '--st-scale', 2.2, '.st-name', 0.42);
+    fitToBox(list, standFit, '--st-scale', max, '.st-name', 0.42);
 
     // Past a certain field size even the smallest readable type will not fit.
-    // Rather than let overflow silently swallow the bottom of the table, drop
-    // the rows that do not fit and say how many are missing.
-    let guard = 0;
-    while(list.scrollHeight > standFit.clientHeight && list.children.length > 2 && guard++ < 400){
-      list.removeChild(list.lastElementChild);
-      list.style.setProperty('--st-rows', Math.ceil(list.children.length / best.cols));
-    }
-    if(list.children.length < n){
-      list.removeChild(list.lastElementChild);
+    // Rather than let overflow swallow the bottom of the table, show what fits
+    // and say how many are missing. The notice goes in first so the count is
+    // measured with it in place.
+    if(list.scrollHeight > standFit.clientHeight){
+      const holder = list.parentElement;           // #tvStandings: list + note
       const more = doc.createElement('div');
-      more.className = 'st-row st-more';
-      more.textContent = '+' + (n - list.children.length) + ' more';
-      list.appendChild(more);
-      list.style.setProperty('--st-rows', Math.ceil(list.children.length / best.cols));
+      more.className = 'st-more';
+      holder.appendChild(more);
+      // The note is kept up to date as rows come off, so every measurement
+      // includes it at its real size.
+      const label = ()=>{ more.textContent = '+' + (n - list.children.length) + ' more' +
+        (full ? '' : ' · Standings view shows all'); };
+      const relayout = ()=> list.style.setProperty('--st-rows', Math.ceil(list.children.length / best.cols));
+      label();
+      let guard = 0;
+      while(holder.scrollHeight > standFit.clientHeight && list.children.length > 1 && guard++ < 500){
+        list.removeChild(list.lastElementChild);
+        relayout(); label();
+      }
     }
   }
 
   const pods = doc.getElementById('tvPods');
   const podFit = doc.getElementById('tvPodsFit');
-  if(pods && podFit){
-    fitToBox(pods, podFit, '--pod-scale', 1.9, 'div.player', 0.42);
-    // A table nobody can see is worse than a small one, so if even the floor
-    // overflows, drop the tables that do not fit and say how many are hidden.
-    let guard = 0;
-    const total = pods.children.length;
-    while(pods.scrollHeight > podFit.clientHeight && pods.children.length > 1 && guard++ < 200){
-      pods.removeChild(pods.lastElementChild);
+  if(pods && visible(podFit)){
+    const full = view === 'seating';
+    const max = full ? 2.6 : 1.9;
+    // Table labels count as clipped too, so a narrow column can't win by
+    // pushing "Table 12" out past its edge.
+    const clipSel = 'div.player, .pod h3';
+    // Try each column count and keep the one that gives the biggest type. A
+    // wider layout has to beat a narrower one clearly to be chosen.
+    const k = pods.children.length;
+    const maxCols = Math.max(1, Math.min(k, full ? 6 : 4));
+    pods.classList.add('fixed-cols');
+    let best = { cols: 1, scale: 0 };
+    for(let c = 1; c <= maxCols; c++){
+      pods.style.setProperty('--pod-cols', c);
+      const sc = fitToBox(pods, podFit, '--pod-scale', max, clipSel, 0.42, 9);
+      if(sc > best.scale * 1.03) best = { cols: c, scale: sc };
     }
-    if(pods.children.length < total){
-      pods.removeChild(pods.lastElementChild);
+    pods.style.setProperty('--pod-cols', best.cols);
+    fitToBox(pods, podFit, '--pod-scale', max, clipSel, 0.42);
+    // A table nobody can see is worse than a small one, so if even the floor
+    // overflows, keep as many tables as fit and say how many are hidden.
+    if(pods.scrollHeight > podFit.clientHeight){
+      const total = pods.children.length;
       const more = doc.createElement('div');
       more.className = 'pod pod-more';
-      more.textContent = '+' + (total - pods.children.length) + ' more at the desk';
       pods.appendChild(more);
+      const label = ()=>{ const hidden = total - (pods.children.length - 1);
+        more.textContent = '+' + hidden + (hidden === 1 ? ' more table' : ' more tables') +
+          (full ? ', ask at the desk' : ' · Seating view shows all'); };
+      label();
+      let guard = 0;
+      while(pods.scrollHeight > podFit.clientHeight && pods.children.length > 2 && guard++ < 300){
+        pods.removeChild(more.previousElementSibling);
+        label();
+      }
     }
   }
 }
@@ -1847,7 +1994,7 @@ function fitTVWindow(entry){
 // largest value that still fits is what we want. A name cut off with an
 // ellipsis counts as not fitting, otherwise the type grows until the longest
 // names are unreadable, which defeats the point of a display board.
-function fitToBox(el, box, varName, max, nameSel, min){
+function fitToBox(el, box, varName, max, nameSel, min, steps){
   let lo = (min == null ? 0.5 : min), hi = max || 2;
   // An element that is not overflowing reports scrollWidth === clientWidth, so
   // the clip test needs a strict comparison, not a tolerance.
@@ -1860,7 +2007,7 @@ function fitToBox(el, box, varName, max, nameSel, min){
   const fits = ()=> el.scrollHeight <= box.clientHeight - 2
                  && el.scrollWidth <= box.clientWidth + 1
                  && !clipped();
-  for(let i=0; i<13; i++){
+  for(let i=0; i<(steps || 13); i++){
     const mid = (lo + hi) / 2;
     el.style.setProperty(varName, mid.toFixed(3));
     if(fits()) lo = mid; else hi = mid;
@@ -1892,10 +2039,13 @@ function renderOneTVWindowTimer(entry){
   const cls = 'timer' + timerClassFor(secs);
   if(timerEl.className !== cls) timerEl.className = cls;
 }
-// Called from inside a display window when its fonts load or it is resized.
+// Called from inside a display window when its fonts load or it is resized,
+// which includes browser zoom. It rebuilds rather than just re-measuring: if a
+// small window forced tables or rows off the screen they were removed, and only
+// a fresh render brings them back once there is room again.
 function refitTVWindows(){
   tvWindows = tvWindows.filter(e => e.win && !e.win.closed);
-  tvWindows.forEach(fitTVWindow);
+  tvWindows.forEach(renderOneTVWindow);
 }
 
 function renderTVWindowTimers(){
@@ -2079,10 +2229,12 @@ function buildLogText(){
   lines.push('FINAL STANDINGS');
   lines.push('-'.repeat(44));
   const standings = computeStandings();
-  standings.forEach((s,i)=>{
+  standings.forEach((s)=>{
     const adjText = s.adjustment ? `, adj ${s.adjustment>0?'+':''}${s.adjustment}` : '';
-    lines.push(`${i+1}. ${s.name}: ${s.points} pts (${s.rounds} rounds${adjText})${s.dropped ? ' [dropped]' : ''}`);
+    const tb = `, ${s.wins} win${s.wins===1?'':'s'}, ${s.kills} kill${s.kills===1?'':'s'}`;
+    lines.push(`${s.tied ? '=' : ''}${s.rank}. ${s.name}: ${s.points} pts (${s.rounds} rounds${tb}${adjText})${s.dropped ? ' [dropped]' : ''}`);
   });
+  if(standings.length) lines.push('Ties break on points, then pod wins, then kills. = marks a shared place.');
   return lines.join('\n');
 }
 
@@ -2788,7 +2940,7 @@ function render(){
     standings.forEach((s, i)=>{
       const tr = document.createElement('tr');
       if(s.dropped) tr.className = 'dropped-player';
-      const tdRank = document.createElement('td'); tdRank.className='rank'; tdRank.textContent = i+1;
+      const tdRank = document.createElement('td'); tdRank.className='rank'; tdRank.textContent = (s.tied ? '=' : '') + s.rank;
       const tdName = document.createElement('td');
       tdName.textContent = s.name + (s.dropped ? ' (dropped)' : '');
       const tdRounds = document.createElement('td'); tdRounds.textContent = s.rounds;
@@ -2824,6 +2976,7 @@ const SEATING_NOTES = {
   random: 'Everyone gets mixed up. The app avoids putting the same people together twice where it can. Best for most rounds, and keeps the night social.',
   score: 'Players on similar points sit together, so the leaders end up at one table. Good for a final round. With a small turnout this repeats pods quickly.',
   balanced: 'Spreads the leaders across different tables so no single table is stacked. Keeps games close when skill levels vary a lot.',
+  winners: 'Last round\'s pod winners sit together at the top table or two and everyone else is shuffled behind them. Use this for round 2 when winners should play winners.',
 };
 
 function renderSeatingNote(){
@@ -2831,10 +2984,12 @@ function renderSeatingNote(){
   if(!el) return;
   const mode = currentSeatingMode();
   el.textContent = SEATING_NOTES[mode] || '';
-  const needsScores = (mode === 'score' || mode === 'balanced') && state.rounds.length === 0;
+  const needsScores = (mode === 'score' || mode === 'balanced' || mode === 'winners') && state.rounds.length === 0;
   el.className = 'mode-note' + (needsScores ? ' warn' : '');
   if(needsScores){
-    el.textContent += ' Nobody has points yet, so this round will come out random anyway.';
+    el.textContent += mode === 'winners'
+      ? ' No round has been finished yet, so there are no winners and this round will come out random.'
+      : ' Nobody has points yet, so this round will come out random anyway.';
   }
 }
 
