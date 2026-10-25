@@ -106,11 +106,22 @@ a row per player per night, for opening in Excel or Sheets.
 who showed up instead of typing the list again.
 
 **TV display.** Opens in its own window with big standings, tables, byes and
-the clock. Each window has three views: **Overview** shows standings and seating
-side by side, **Seating** gives the whole screen to the tables, and
-**Standings** gives it to the leaderboard. Switch with the buttons along the top
-or press 1, 2 or 3 on the display. Seating is the one to put up at the start of
-a round on a busy night, since every table gets far more room. It sizes itself to whatever screen it lands on: standings flow into
+the clock. Each window has four views: **Overview** shows standings and seating
+side by side, **Seating** gives the whole screen to the tables, **Standings**
+gives it to tonight's leaderboard, and **Season** shows the season leaderboard
+built from the banked nights, with nights played and pod wins beside each name.
+Switch with the buttons along the top or press 1, 2, 3 or 4 on the display.
+Seating is the one to put up at the start of a round on a busy night, since
+every table gets far more room. Season is for check-in and after the last
+round, when people want to know where they stand for the finale.
+
+**Auto** (or the A key) makes the display cycle through its views every 20
+seconds, with a thin bar along the bottom edge showing when the next change is
+due. Views with nothing on them are skipped: before any round is scored it
+alternates Seating and Season, and Season only appears once a night has been
+banked. Pressing any view button or key stops the rotation and holds that view.
+
+It sizes itself to whatever screen it lands on: standings flow into
 more columns and the type grows or shrinks so the whole room fits on one screen
 with no scrolling, whether that is six players on a 1080p TV or forty on an old
 projector. Everyone on the top score is highlighted as a leader, so a four-way

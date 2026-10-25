@@ -1607,7 +1607,7 @@ function tvShellHTML(winId){
      were being measured, could squeeze the standings and cut off names. */
   .tv-layout{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1.3fr);
     grid-template-rows:minmax(0,1fr);gap:clamp(14px,1.6vw,30px);flex:1;min-height:0;}
-  body.view-seating .tv-layout, body.view-standings .tv-layout{grid-template-columns:minmax(0,1fr);}
+  body.view-seating .tv-layout, body.view-standings .tv-layout, body.view-season .tv-layout{grid-template-columns:minmax(0,1fr);}
   .tv-panel{background:${t.panel};border:1px solid ${t.panelLine};border-radius:16px;
     padding:clamp(14px,2vh,24px);display:flex;flex-direction:column;min-height:0;}
   /* Standings and Seating are a matched pair, so they grow together. */
@@ -1684,6 +1684,23 @@ function tvShellHTML(winId){
      Standings each take the whole thing, so a big night still fits at a size
      the room can read. */
   body.view-seating .p-standings, body.view-standings .p-seating{display:none;}
+  /* Season is the fourth view: the banked leaderboard, full screen. Its panel
+     is hidden everywhere else so the other three views are exactly as before. */
+  .p-season{display:none;}
+  body.view-season .p-standings, body.view-season .p-seating{display:none;}
+  body.view-season .p-season{display:flex;}
+  .tv-panel h2 .h2-sub{font-family:'Inter',sans-serif;font-weight:400;text-transform:none;letter-spacing:0;
+    color:${t.muted};font-size:.62em;margin-left:.8em;}
+  .st-row.season{grid-template-columns:2.1em 1fr auto auto;}
+  .st-row .st-sub{font-size:.62em;color:${t.muted};white-space:nowrap;}
+  /* When names would otherwise be cut off, the nights/wins column goes first. */
+  .st-list.no-sub .st-sub{display:none;}
+  .st-list.no-sub .st-row.season{grid-template-columns:2.1em 1fr auto;}
+  /* Auto-rotate progress. Fixed to the bottom edge so it never changes the
+     layout the fit was measured against. */
+  .auto-bar{position:fixed;left:0;right:0;bottom:0;height:5px;background:transparent;display:none;z-index:9;}
+  body.auto-on .auto-bar{display:block;}
+  .auto-bar span{display:block;height:100%;width:0;background:${t.gold};opacity:.55;}
   body.pointer-active .ws-tabs{opacity:1;}
   .round-label{font-family:'Old Fenris','Cinzel',serif;font-size:clamp(17px,2.7vh,30px);text-align:center;
     color:${t.muted};letter-spacing:.06em;margin:0 0 2px;}
@@ -1705,13 +1722,17 @@ function tvShellHTML(winId){
   <button class="ws-tab" id="tvView_overview" title="Key 1" onclick="window.opener && window.opener.setTVWindowView('${winId}','overview')">Overview</button>
   <button class="ws-tab" id="tvView_seating" title="Key 2" onclick="window.opener && window.opener.setTVWindowView('${winId}','seating')">Seating</button>
   <button class="ws-tab" id="tvView_standings" title="Key 3" onclick="window.opener && window.opener.setTVWindowView('${winId}','standings')">Standings</button>
+  <button class="ws-tab" id="tvView_season" title="Key 4" onclick="window.opener && window.opener.setTVWindowView('${winId}','season')">Season</button>
+  <button class="ws-tab" id="tvAutoBtn" title="Key A · cycles the views" onclick="window.opener && window.opener.toggleTVAuto('${winId}')">Auto</button>
 </div>
 <div id="tvRound" class="round-label">Round 1</div>
 <div id="tvTimer" class="timer">--:--</div>
 <div class="tv-layout">
   <div class="tv-panel p-standings"><h2>Standings</h2><div class="tv-fit" id="tvStandingsFit"><div id="tvStandings"></div></div></div>
   <div class="tv-panel p-seating"><h2>Seating</h2><div class="tv-fit" id="tvPodsFit"><div id="tvPods" class="pods-grid"></div></div></div>
+  <div class="tv-panel p-season"><h2>Season <span class="h2-sub" id="tvSeasonSub"></span></h2><div class="tv-fit" id="tvSeasonFit"><div id="tvSeason"></div></div></div>
 </div>
+<div class="auto-bar" id="tvAutoBar"><span></span></div>
 <script>
   // Tabs are for whoever is running the night, not the room.
   (function(){
@@ -1726,12 +1747,17 @@ function tvShellHTML(winId){
       var b = e.target.closest && e.target.closest('.ws-tab'); if(b) b.blur();
     });
 
-    // 1, 2, 3 switch between Overview, Seating and Standings without hunting
-    // for the faded buttons.
-    var views = {'1':'overview','2':'seating','3':'standings'};
+    // 1 to 4 switch views without hunting for the faded buttons. A toggles
+    // auto-rotate; picking a view by hand switches it off.
+    var views = {'1':'overview','2':'seating','3':'standings','4':'season'};
     document.addEventListener('keydown', function(e){
+      if(e.ctrlKey || e.metaKey || e.altKey) return;
+      if(e.key === 'a' || e.key === 'A'){
+        try{ window.opener && window.opener.toggleTVAuto('${winId}'); }catch(err){}
+        return;
+      }
       var v = views[e.key];
-      if(!v || e.ctrlKey || e.metaKey || e.altKey) return;
+      if(!v) return;
       try{ window.opener && window.opener.setTVWindowView('${winId}', v); }catch(err){}
     });
 
@@ -1772,8 +1798,14 @@ function getThemeVars(){
 let tvWindows = []; // [{ id, win, workspace }]
 let tvWinIdCounter = 1;
 let lastTVWorkspace = 'league';
-const TV_VIEWS = ['overview','seating','standings'];
+const TV_VIEWS = ['overview','seating','standings','season'];
 let lastTVView = 'overview';
+// Auto-rotate: each display can cycle through its views on its own. Views with
+// nothing to show are skipped, so during a round it alternates Seating and
+// Standings, and Season only joins once a night has been banked.
+const TV_AUTO_SECONDS = 20;
+let lastTVAuto = false;
+let tvAutoTicker = null;
 
 function openTVWindow(){
   const id = 'tv' + (tvWinIdCounter++);
@@ -1782,17 +1814,73 @@ function openTVWindow(){
   win.document.open();
   win.document.write(tvShellHTML(id));
   win.document.close();
-  const entry = { id, win, workspace: lastTVWorkspace, view: lastTVView };
+  const entry = { id, win, workspace: lastTVWorkspace, view: lastTVView, auto: lastTVAuto, autoAt: Date.now() };
   tvWindows.push(entry);
   renderOneTVWindow(entry);
+  ensureTVAutoTicker();
 }
 
-function setTVWindowView(id, view){
+function setTVWindowView(id, view, keepAuto){
   const entry = tvWindows.find(e=>e.id===id);
   if(!entry || !TV_VIEWS.includes(view)) return;
   entry.view = view;
   lastTVView = view;
+  // Choosing a view by hand means "hold this one", so rotation stops.
+  if(!keepAuto && entry.auto){ entry.auto = false; lastTVAuto = false; }
+  entry.autoAt = Date.now();
   renderOneTVWindow(entry);
+}
+
+function toggleTVAuto(id){
+  const entry = tvWindows.find(e=>e.id===id);
+  if(!entry) return;
+  entry.auto = !entry.auto;
+  lastTVAuto = entry.auto;
+  entry.autoAt = Date.now();
+  renderOneTVWindow(entry);
+  ensureTVAutoTicker();
+}
+
+// Which views have something on them right now, in rotation order.
+function tvViewsWithContent(entry){
+  const ws = workspaces[entry.workspace];
+  const hasPods = ws.pods.some(p=> p.members.length > 0) || ws.unassigned.length > 0;
+  const hasStandings = computeStandingsFor(ws).length > 0;
+  const hasSeason = validNights().length > 0;
+  const out = [];
+  if(hasPods && hasStandings) out.push('overview');
+  if(hasPods) out.push('seating');
+  if(hasStandings) out.push('standings');
+  if(hasSeason) out.push('season');
+  return out.length ? out : ['overview'];
+}
+
+function ensureTVAutoTicker(){
+  if(tvAutoTicker) return;
+  tvAutoTicker = setInterval(()=>{
+    tvWindows = tvWindows.filter(e => e.win && !e.win.closed);
+    const now = Date.now();
+    tvWindows.forEach(entry=>{
+      if(!entry.auto) return;
+      if(now - (entry.autoAt || 0) < TV_AUTO_SECONDS * 1000){ renderOneTVAutoBar(entry, now); return; }
+      const views = tvViewsWithContent(entry);
+      const i = views.indexOf(entry.view);
+      const next = views[(i + 1) % views.length];
+      entry.autoAt = now;
+      if(next !== entry.view) setTVWindowView(entry.id, next, true);
+      else renderOneTVAutoBar(entry, now);
+    });
+  }, 500);
+}
+
+function renderOneTVAutoBar(entry, now){
+  if(!entry.win || entry.win.closed) return;
+  let doc;
+  try{ doc = entry.win.document; } catch(e){ return; }
+  const bar = doc.querySelector('#tvAutoBar span');
+  if(!bar) return;
+  const frac = Math.min(1, ((now || Date.now()) - (entry.autoAt || 0)) / (TV_AUTO_SECONDS * 1000));
+  bar.style.width = (frac * 100).toFixed(1) + '%';
 }
 
 function setTVWindowWorkspace(id, ws){
@@ -1827,11 +1915,16 @@ function renderOneTVWindow(entry){
   if(doc.body){
     doc.body.classList.toggle('view-seating', view === 'seating');
     doc.body.classList.toggle('view-standings', view === 'standings');
+    doc.body.classList.toggle('view-season', view === 'season');
+    doc.body.classList.toggle('auto-on', !!entry.auto);
   }
   TV_VIEWS.forEach(v=>{
     const b = doc.getElementById('tvView_' + v);
     if(b) b.classList.toggle('active', v === view);
   });
+  const autoBtn = doc.getElementById('tvAutoBtn');
+  if(autoBtn) autoBtn.classList.toggle('active', !!entry.auto);
+  renderOneTVAutoBar(entry);
 
   const roundEl = doc.getElementById('tvRound');
   if(roundEl){
@@ -1891,6 +1984,40 @@ function renderOneTVWindow(entry){
     }
   }
 
+  // Season leaderboard: the same rows as tonight's board, read from the banked
+  // nights. Nothing here writes to the archive.
+  const seasonEl = doc.getElementById('tvSeason');
+  if(seasonEl){
+    const nights = validNights().length;
+    const sub = doc.getElementById('tvSeasonSub');
+    if(sub) sub.textContent = nights ? 'after ' + nights + (nights === 1 ? ' night' : ' nights') : '';
+    if(view === 'season'){
+      const season = nights ? computeSeasonStandings() : [];
+      if(season.length === 0){
+        seasonEl.innerHTML = '<p class="muted">No nights banked yet.</p>';
+      } else {
+        const tiers = [...new Set(season.map(s=> s.points))].filter(v=> v > 0).slice(0,3);
+        let rank = 0;
+        const rows = season.map((s,i)=>{
+          const prev = season[i-1];
+          if(!prev || prev.points !== s.points || prev.wins !== s.wins || prev.kills !== s.kills || prev.nights !== s.nights) rank = i + 1;
+          const nxt = season[i+1];
+          const tied = (prev && prev.points === s.points && prev.wins === s.wins && prev.kills === s.kills && prev.nights === s.nights)
+                    || (nxt && nxt.points === s.points && nxt.wins === s.wins && nxt.kills === s.kills && nxt.nights === s.nights);
+          const t = tiers.indexOf(s.points);
+          const cls = 'st-row season' + (t >= 0 ? ' tier'+(t+1) : '');
+          const sub = s.nights + (s.nights === 1 ? ' night' : ' nights') + ' · ' + s.wins + (s.wins === 1 ? ' win' : ' wins');
+          return `<div class="${cls}"><span class="st-rank">${tied ? '=' : ''}${rank}</span>` +
+                 `<span class="st-name">${esc(s.name)}</span><span class="st-sub">${sub}</span>` +
+                 `<span class="st-pts">${s.points}</span></div>`;
+        }).join('');
+        seasonEl.innerHTML = `<div class="st-list">${rows}</div>`;
+      }
+    } else {
+      seasonEl.innerHTML = '';
+    }
+  }
+
   fitTVWindow(entry);
 }
 
@@ -1904,50 +2031,8 @@ function fitTVWindow(entry){
   const view = TV_VIEWS.includes(entry.view) ? entry.view : 'overview';
   const visible = el => el && el.getClientRects().length > 0 && el.clientHeight > 0;
 
-  const list = doc.querySelector('#tvStandings .st-list');
-  const standFit = doc.getElementById('tvStandingsFit');
-  if(list && visible(standFit)){
-    const n = list.children.length;
-    const full = view === 'standings';
-    const max = full ? 3 : 2.2;
-    // Try each shape and keep whichever lets the names be biggest, rather than
-    // guessing from the head count alone. One column reads best when it fits.
-    // With the whole screen to work with, more columns are worth trying.
-    const options = full
-      ? (n <= 8 ? [1,2] : (n <= 18 ? [1,2,3] : (n <= 34 ? [2,3,4] : [3,4,5])))
-      : (n <= 8 ? [1] : (n <= 18 ? [1,2] : (n <= 34 ? [2,3] : [3,4])));
-    let best = { cols: options[0], scale: 0 };
-    options.forEach(cols=>{
-      list.style.setProperty('--st-rows', Math.ceil(n / cols));
-      const scale = fitToBox(list, standFit, '--st-scale', max, '.st-name', 0.42);
-      // Another column has to earn itself; a hair more size is not worth it.
-      if(scale > best.scale * 1.06) best = { cols, scale };
-    });
-    list.style.setProperty('--st-rows', Math.ceil(n / best.cols));
-    fitToBox(list, standFit, '--st-scale', max, '.st-name', 0.42);
-
-    // Past a certain field size even the smallest readable type will not fit.
-    // Rather than let overflow swallow the bottom of the table, show what fits
-    // and say how many are missing. The notice goes in first so the count is
-    // measured with it in place.
-    if(list.scrollHeight > standFit.clientHeight){
-      const holder = list.parentElement;           // #tvStandings: list + note
-      const more = doc.createElement('div');
-      more.className = 'st-more';
-      holder.appendChild(more);
-      // The note is kept up to date as rows come off, so every measurement
-      // includes it at its real size.
-      const label = ()=>{ more.textContent = '+' + (n - list.children.length) + ' more' +
-        (full ? '' : ' · Standings view shows all'); };
-      const relayout = ()=> list.style.setProperty('--st-rows', Math.ceil(list.children.length / best.cols));
-      label();
-      let guard = 0;
-      while(holder.scrollHeight > standFit.clientHeight && list.children.length > 1 && guard++ < 500){
-        list.removeChild(list.lastElementChild);
-        relayout(); label();
-      }
-    }
-  }
+  fitTVList(doc, '#tvStandings .st-list', 'tvStandingsFit', view === 'standings');
+  fitTVList(doc, '#tvSeason .st-list', 'tvSeasonFit', true);
 
   const pods = doc.getElementById('tvPods');
   const podFit = doc.getElementById('tvPodsFit');
@@ -1985,6 +2070,68 @@ function fitTVWindow(entry){
       while(pods.scrollHeight > podFit.clientHeight && pods.children.length > 2 && guard++ < 300){
         pods.removeChild(more.previousElementSibling);
         label();
+      }
+    }
+  }
+}
+
+// Fits one ranked list (tonight's standings or the season board) into its box.
+// `full` means the list has the whole screen, so more columns and bigger type
+// are worth trying.
+function fitTVList(doc, listSel, fitId, full){
+  const visible = el => el && el.getClientRects().length > 0 && el.clientHeight > 0;
+  const list = doc.querySelector(listSel);
+  const standFit = doc.getElementById(fitId);
+  if(list && visible(standFit)){
+    const n = list.children.length;
+    const max = full ? 3 : 2.2;
+    // Try each shape and keep whichever lets the names be biggest, rather than
+    // guessing from the head count alone. One column reads best when it fits.
+    // With the whole screen to work with, more columns are worth trying.
+    const options = full
+      ? (n <= 8 ? [1,2] : (n <= 18 ? [1,2,3] : (n <= 34 ? [2,3,4] : [3,4,5])))
+      : (n <= 8 ? [1] : (n <= 18 ? [1,2] : (n <= 34 ? [2,3] : [3,4])));
+    let best = { cols: options[0], scale: 0 };
+    options.forEach(cols=>{
+      list.style.setProperty('--st-rows', Math.ceil(n / cols));
+      const scale = fitToBox(list, standFit, '--st-scale', max, '.st-name', 0.42);
+      // Another column has to earn itself; a hair more size is not worth it.
+      if(scale > best.scale * 1.06) best = { cols, scale };
+    });
+    list.style.setProperty('--st-rows', Math.ceil(n / best.cols));
+    let scale = fitToBox(list, standFit, '--st-scale', max, '.st-name', 0.42);
+
+    // The season rows carry a small nights/wins column. If the names are still
+    // being cut off at the smallest type, that column is the thing to lose, not
+    // the names. Dropping it also lets the type come back up a step.
+    list.classList.remove('no-sub');
+    if(list.querySelector('.st-sub') && scale <= 0.43){
+      const anyClipped = [...list.querySelectorAll('.st-name')].some(el=> el.scrollWidth > el.clientWidth + 1);
+      if(anyClipped){
+        list.classList.add('no-sub');
+        scale = fitToBox(list, standFit, '--st-scale', max, '.st-name', 0.42);
+      }
+    }
+
+    // Past a certain field size even the smallest readable type will not fit.
+    // Rather than let overflow swallow the bottom of the table, show what fits
+    // and say how many are missing. The notice goes in first so the count is
+    // measured with it in place.
+    if(list.scrollHeight > standFit.clientHeight){
+      const holder = list.parentElement;           // #tvStandings: list + note
+      const more = doc.createElement('div');
+      more.className = 'st-more';
+      holder.appendChild(more);
+      // The note is kept up to date as rows come off, so every measurement
+      // includes it at its real size.
+      const label = ()=>{ more.textContent = '+' + (n - list.children.length) + ' more' +
+        (full ? '' : ' · Standings view shows all'); };
+      const relayout = ()=> list.style.setProperty('--st-rows', Math.ceil(list.children.length / best.cols));
+      label();
+      let guard = 0;
+      while(holder.scrollHeight > standFit.clientHeight && list.children.length > 1 && guard++ < 500){
+        list.removeChild(list.lastElementChild);
+        relayout(); label();
       }
     }
   }
@@ -2505,6 +2652,7 @@ function renderSeasonStats(){
     }
   }
   renderStoreStatsWindow();
+  renderTVWindow();
 }
 
 function viewBankedLog(id){
