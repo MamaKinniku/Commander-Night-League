@@ -1926,6 +1926,8 @@ function renderOneTVWindow(entry){
   if(autoBtn) autoBtn.classList.toggle('active', !!entry.auto);
   renderOneTVAutoBar(entry);
 
+  clearTVTitle(doc);
+
   const roundEl = doc.getElementById('tvRound');
   if(roundEl){
     // Rounds already finished are locked in, so the live one is the next number.
@@ -2019,6 +2021,27 @@ function renderOneTVWindow(entry){
   }
 
   fitTVWindow(entry);
+}
+
+// The buttons sit in the top corners and the title is centred between them.
+// On a narrow window, or with a long app name, the two meet. When they do, the
+// title is pushed down below the buttons rather than running into them. This
+// runs before the panels are fitted, so they size to whatever room is left.
+function clearTVTitle(doc){
+  const h1 = doc.getElementById('tvAppName');
+  const left = doc.querySelector('.ws-tabs.left');
+  const right = doc.querySelector('.ws-tabs.right');
+  if(!h1 || !left || !right) return;
+  h1.style.marginTop = '';
+  let text;
+  try{ const rg = doc.createRange(); rg.selectNodeContents(h1); text = rg.getBoundingClientRect(); }catch(e){ return; }
+  const l = left.getBoundingClientRect(), r = right.getBoundingClientRect();
+  const gap = 10;
+  const sideways = text.left < l.right + gap || text.right > r.left - gap;
+  const below = Math.max(l.bottom, r.bottom) + gap;
+  if(sideways && text.top < below){
+    h1.style.marginTop = Math.round(below - text.top) + 'px';
+  }
 }
 
 // Sizes both panels to the screen they are actually on. A small turnout gets
